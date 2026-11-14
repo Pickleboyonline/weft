@@ -22,6 +22,17 @@ maelstrom    https://github.com/jepsen-io/maelstrom.git          -
 roc          https://github.com/roc-lang/roc.git                 -
 koka         https://github.com/koka-lang/koka.git               -
 
+# ---- Multitier languages and verified distribution
+urweb        https://github.com/urweb/urweb.git                  -
+scala-loci   https://github.com/scala-loci/scala-loci.git        -
+electric     https://github.com/hyperfiddle/electric.git         -   # commercial license: read, don't copy
+verdi        https://github.com/uwplse/verdi.git                 -
+# verdi-raft   https://github.com/uwplse/verdi-raft.git            -   # Raft verified with Verdi
+# links        https://github.com/links-lang/links.git             -
+# eliom        https://github.com/ocsigen/eliom.git                -
+# elle         https://github.com/jepsen-io/elle.git               -   # history checker behind Jepsen
+# katara       https://github.com/hydro-project/katara.git         -   # CRDT synthesis from sequential types
+
 # ---- Tier 2: patterns the compiler should generate
 # sync and offline (CRUD)
 # electric     https://github.com/neondatabase/electric.git        -

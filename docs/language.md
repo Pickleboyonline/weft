@@ -352,6 +352,11 @@ backtracking and async-style control stay local.
 
 ## 11. Compilation pipeline
 
+The physical side of this pipeline is sketched in two concept notes:
+[jax-analogy.md](jax-analogy.md) (what weft borrows from how JAX handles
+hardware) and [infrastructure-primitives.md](infrastructure-primitives.md)
+(storage, caching and compute as primitives instead of products).
+
 ```
 front ends ─▶ logical IR ─▶ (+ placement, consistency, platforms) ─▶ physical IR ─▶ lowerings
                  │                                                        │

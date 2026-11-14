@@ -10,16 +10,20 @@ up to a logical program plus placement/consistency annotations.
 
 The current language proposal is [docs/language.md](docs/language.md). Its open
 decisions (section 14) belong to the project owner: don't treat its
-recommendations as settled.
+recommendations as settled. Concept notes on the physical layer:
+[docs/jax-analogy.md](docs/jax-analogy.md) and
+[docs/infrastructure-primitives.md](docs/infrastructure-primitives.md).
 
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,
-Encore, DBOS, TigerBeetle, Maelstrom, Roc, Koka). [refs/README.md](refs/README.md) says why
-each matters and where to start reading.
+Encore, DBOS, TigerBeetle, Maelstrom, Roc, Koka, Ur/Web, ScalaLoci, Electric,
+Verdi). [refs/README.md](refs/README.md) says why each matters and where to
+start reading. Papers are in [docs/reading-list.md](docs/reading-list.md).
 
 - Never edit files under `refs/`; `refs/sync.sh` resets them.
 - They're git-ignored, so project-wide searches skip them. Search them by path,
   e.g. `rg pattern refs/jax`.
 - Add a repo by editing `refs/repos.txt` and running `refs/sync.sh <name>`.
-- Restate (BSL) and Convex (FSL) are source-available: read, don't copy.
+- Restate (BSL), Convex (FSL) and Electric (commercial) are source-available:
+  read, don't copy.

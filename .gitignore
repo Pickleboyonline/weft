@@ -1,0 +1,6 @@
+# Reference clones live in refs/<name>/ and are never committed.
+# Only the folder's own bookkeeping is tracked.
+/refs/*
+!/refs/README.md
+!/refs/repos.txt
+!/refs/sync.sh

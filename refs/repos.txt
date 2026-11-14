@@ -1,0 +1,56 @@
+# Reference repos, cloned into refs/<name>/ by refs/sync.sh.
+#
+# Columns (whitespace-separated):
+#   name   url   ref   [sparse paths...]
+#
+#   ref     "-" for the default branch, or a branch, tag, or commit hash to pin.
+#   sparse  optional; check out only these directories (for monorepos).
+#
+# Enable a repo by uncommenting its line, then: refs/sync.sh <name>
+
+# ---- Tier 1: shapes the core design
+hydro        https://github.com/hydro-project/hydro.git          -
+jax          https://github.com/jax-ml/jax.git                   -
+triton       https://github.com/triton-lang/triton.git           -
+wing         https://github.com/winglang/wing.git                -
+encore       https://github.com/encoredev/encore.git             -
+dbos-py      https://github.com/dbos-inc/dbos-transact-py.git    -
+tigerbeetle  https://github.com/tigerbeetle/tigerbeetle.git      -
+maelstrom    https://github.com/jepsen-io/maelstrom.git          -
+
+# ---- Tier 2: patterns the compiler should generate
+# sync and offline (CRUD)
+# electric     https://github.com/neondatabase/electric.git        -
+# zero         https://github.com/rocicorp/mono.git                -
+# convex       https://github.com/convex/convex-backend.git        -   # FSL: read, don't copy
+# automerge    https://github.com/automerge/automerge.git          -
+# durable execution
+# temporal-py  https://github.com/temporalio/sdk-python.git        -
+# restate      https://github.com/restatedev/restate.git           -   # BSL: read, don't copy
+# placement
+# orleans      https://github.com/dotnet/orleans.git               -
+# protocol testing and simulation
+# p            https://github.com/p-org/P.git                      -
+# stateright   https://github.com/stateright/stateright.git        -
+# turmoil      https://github.com/tokio-rs/turmoil.git             -
+# madsim       https://github.com/madsim-rs/madsim.git             -
+# foundationdb https://github.com/apple/foundationdb.git           -
+
+# ---- Tier 3: hand-written baselines for benchmarks
+# CRUD: one spec, many hand-written implementations
+# realworld    https://github.com/realworld-apps/realworld.git     -
+# todomvc      https://github.com/tastejs/todomvc.git              -
+# KV store
+# etcd-raft    https://github.com/etcd-io/raft.git                 -
+# OTA (parked)
+# mender       https://github.com/mendersoftware/mender.git        -
+# hawkbit      https://github.com/eclipse-hawkbit/hawkbit.git      -
+# rauc         https://github.com/rauc/rauc.git                    -
+
+# ---- Tier 4: compiler infrastructure, on demand
+# xdsl         https://github.com/xdslproject/xdsl.git             -
+# mlir         https://github.com/llvm/llvm-project.git            -   mlir/docs mlir/include/mlir/IR mlir/examples/toy
+# ibis         https://github.com/ibis-project/ibis.git            -
+# numba        https://github.com/numba/numba.git                  -
+# unison       https://github.com/unisonweb/unison.git             -
+# tla-examples https://github.com/tlaplus/Examples.git             -

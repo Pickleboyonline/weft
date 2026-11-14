@@ -1,0 +1,41 @@
+# refs/
+
+Read-only clones of projects worth studying. The clones are git-ignored; only
+this README, [repos.txt](repos.txt) and [sync.sh](sync.sh) are tracked.
+
+```bash
+refs/sync.sh              # clone or update everything enabled in repos.txt
+refs/sync.sh jax hydro    # just these
+```
+
+- **Add a repo:** add or uncomment a line in `repos.txt`, then `refs/sync.sh <name>`.
+- **Pin a version:** put a branch, tag or commit hash in the `ref` column.
+- **Monorepos:** list directories after the ref to sparse-check-out only those
+  (see the `mlir` line).
+- Clones are shallow and get reset on every sync, so don't keep edits in them.
+- Searches from the project root skip `refs/`. Search a clone by path,
+  e.g. `rg "def jaxpr" refs/jax`.
+- Restate (BSL) and Convex (FSL) are source-available: read them, don't copy
+  from them.
+
+## Tier 1: what to read, and why
+
+The running example is a simple CRUD app. For each repo, the question is what
+it teaches about expressing one, compiling it across machines, and testing it.
+
+| Repo | Why it matters | Read first |
+|---|---|---|
+| **hydro** | Closest prior art: a Rust compiler stack for distributed programs. It has typed *locations* (process, cluster), *live collections* typed by boundedness and ordering, lattices, a simulator, and proofs. | `docs/docs/hydro/`, `hydro_lang/src/location/`, `hydro_lang/src/live_collections/`, `hydro_lang/src/sim/`, `design_docs/` |
+| **jax** | The model for the architecture: a small IR (jaxpr), primitives that carry per-transformation rules, tracing, and sharding annotations the compiler propagates. | `docs/autodidax.md` (builds JAX from scratch; start here), `docs/tracing.md`, `docs/jax.sharding.rst`, `jax/_src/core.py` |
+| **triton** | A Python front end that captures the function's AST instead of tracing it, so ordinary `if`/`for` work. `constexpr` marks build-time values. | `python/triton/compiler/code_generator.py`, `python/triton/language/core.py` |
+| **wing** | "Infrastructure from code": abstract cloud resources with one implementation per target, *including a local simulator target*. Splits code into build-time and run-time ("preflight" and "inflight"). | `docs/docs/02-concepts/`, `packages/@winglang/sdk/src/cloud/` vs `target-sim/` vs `target-tf-aws/` |
+| **encore** | Builds an app model (services, APIs, databases, pub/sub, crons) by statically parsing ordinary Go/TS code, validates it, then provisions it per cloud. | `v2/app/` (app model and validation), `v2/parser/` |
+| **dbos-py** | A Python decorator API (`@workflow`, `@step`, `@transaction`) for durable execution on Postgres. A reference for how commands should read in Python. | `dbos/_dbos.py` (decorators), `dbos/_core.py`, `dbos/_recovery.py` |
+| **tigerbeetle** | The gold standard for deterministic simulation testing (VOPR): simulated network and storage, fault injection, a state-machine model checked against the real one. | `src/vopr.zig`, `src/testing/` (`packet_simulator.zig`, `storage.zig`, `state_machine.zig`) |
+| **maelstrom** | Small. Checks distributed systems against named consistency models: our "does the distributed run refine the logical program" check. | `doc/` (in order; `04-crdts/` and `06-raft/` most relevant), `doc/workloads.md` |
+
+Later tiers are commented out in `repos.txt`, grouped by the question they answer:
+- **Tier 2:** sync and offline, durable execution, placement, simulation libraries.
+- **Tier 3:** hand-written baselines to benchmark against. For CRUD, RealWorld
+  and TodoMVC each give one app spec with many hand-written implementations.
+- **Tier 4:** compiler infrastructure: xdsl, MLIR, ibis.

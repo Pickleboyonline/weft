@@ -8,6 +8,10 @@ The first scaffold (Python tracing front end, IR v0, deterministic simulator) is
 in commit fb58534, kept for reference. The redesign moves the user-facing layer
 up to a logical program plus placement/consistency annotations.
 
+The current language proposal is [docs/language.md](docs/language.md). Its open
+decisions (section 14) belong to the project owner: don't treat its
+recommendations as settled.
+
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,

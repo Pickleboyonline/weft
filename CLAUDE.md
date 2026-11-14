@@ -11,7 +11,7 @@ up to a logical program plus placement/consistency annotations.
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,
-Encore, DBOS, TigerBeetle, Maelstrom). [refs/README.md](refs/README.md) says why
+Encore, DBOS, TigerBeetle, Maelstrom, Roc, Koka). [refs/README.md](refs/README.md) says why
 each matters and where to start reading.
 
 - Never edit files under `refs/`; `refs/sync.sh` resets them.

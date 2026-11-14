@@ -18,6 +18,10 @@ dbos-py      https://github.com/dbos-inc/dbos-transact-py.git    -
 tigerbeetle  https://github.com/tigerbeetle/tigerbeetle.git      -
 maelstrom    https://github.com/jepsen-io/maelstrom.git          -
 
+# ---- Language design: effects and platforms
+roc          https://github.com/roc-lang/roc.git                 -
+koka         https://github.com/koka-lang/koka.git               -
+
 # ---- Tier 2: patterns the compiler should generate
 # sync and offline (CRUD)
 # electric     https://github.com/neondatabase/electric.git        -

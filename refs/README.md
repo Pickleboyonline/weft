@@ -34,6 +34,15 @@ it teaches about expressing one, compiling it across machines, and testing it.
 | **tigerbeetle** | The gold standard for deterministic simulation testing (VOPR): simulated network and storage, fault injection, a state-machine model checked against the real one. | `src/vopr.zig`, `src/testing/` (`packet_simulator.zig`, `storage.zig`, `state_machine.zig`) |
 | **maelstrom** | Small. Checks distributed systems against named consistency models: our "does the distributed run refine the logical program" check. | `doc/` (in order; `04-crdts/` and `06-raft/` most relevant), `doc/workloads.md` |
 
+## Language design: effects and platforms
+
+Ideas to borrow for a weft language, not foundations to build on.
+
+| Repo | Why it matters | Read first |
+|---|---|---|
+| **roc** | *Platforms*: a pure app plus a host that provides every effect, our "targets as capability sets". Effectful functions are marked with `!` and `=>`. Structural tag unions for errors, in-place updates through reference counting. Pre-0.1, compiler mid-rewrite to Zig. | `docs/langref/platforms.md`, `functions.md` (purity), `tag-unions.md`, `errors.md`; `test/fx/` (an app plus its platform) |
+| **koka** | Inferred *effect types* (what each function touches) and effect *handlers* (same program, different interpretation). Perceus reference counting and functional-but-in-place updates. | `doc/spec/book.kk.md` (effects and handlers chapters), `samples/handlers/`, `samples/learn/handler.kk`, `samples/learn/fip.kk` |
+
 Later tiers are commented out in `repos.txt`, grouped by the question they answer:
 - **Tier 2:** sync and offline, durable execution, placement, simulation libraries.
 - **Tier 3:** hand-written baselines to benchmark against. For CRUD, RealWorld

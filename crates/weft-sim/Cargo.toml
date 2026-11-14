@@ -1,0 +1,9 @@
+[package]
+name = "weft-sim"
+version = "0.0.1"
+edition = "2021"
+description = "Deterministic whole-system simulator for Weft IR"
+
+[dependencies]
+weft-ir = { path = "../weft-ir" }
+serde_json = "1"

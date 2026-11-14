@@ -1,0 +1,9 @@
+[package]
+name = "weft-ir"
+version = "0.0.1"
+edition = "2021"
+description = "Weft IR v0: the program graph every front end emits and every backend consumes"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -18,8 +18,9 @@ produce, not what people should write.
 
 So weft separates three things that today's software mixes together:
 
-1. **What**: the logical program. Data, operations, derived views, external
-   effects and invariants, written as if everything ran on one machine.
+1. **What**: the logical program. Data, commands that change it, queries over
+   it, external effects and invariants, written as if everything ran on one
+   machine.
 2. **Where, and how strongly**: placement and consistency. Which data lives
    where, what may be stale, what must work offline. These play the role JAX's
    sharding annotations play.
@@ -53,8 +54,8 @@ the invariants of your domain.
 
 - General protocol synthesis. Templates plus coordination analysis are the
   practical version.
-- User-defined effects that capture continuations across machines (section 10).
-- Replacing general-purpose languages. Externs (section 9) are the way out.
+- User-defined effects that capture continuations across machines (section 11).
+- Replacing general-purpose languages. Externs (section 10) are the way out.
 
 ## 3. Principles
 
@@ -70,7 +71,7 @@ the invariants of your domain.
 
 ## 4. A complete example
 
-The running example is a todo app: a server-side table, commands and views, and
+The running example is a todo app: a server-side table, commands and queries, and
 a browser client, all in one file.
 
 ```weft
@@ -111,10 +112,10 @@ keeps = |show, t| match show {
   Done   -> t.done
 }
 
-view todo_list(show: Filter) -> List(Todo) =
+query todo_list(show: Filter) -> List(Todo) =
   todos.filter(|t| keeps(show, t)).sort_by(.created)
 
-view remaining() -> U64 =
+query remaining() -> U64 =
   todos.count(|t| not t.done)
 
 # ── Client: local state, changed by actions ──────────────────
@@ -164,8 +165,8 @@ check titles_not_blank = todos.all(|t| not t.title.trim().is_empty())
 ```
 
 The file contains no fetch calls, API routes, loading code, cache
-invalidation, or serialization. `view` reads `todo_list(show)` as if the data
-were local. Actions change local state directly and send commands with `do`.
+invalidation, or serialization. `App`'s `view` reads the query `todo_list(show)`
+as if the data were local. Actions change local state directly and send commands with `do`.
 
 ## 5. Effects
 
@@ -175,7 +176,7 @@ were local. Actions change local state directly and send commands with `do`.
   deterministic: writes, rejects, randomness, time, externs. A function is
   effectful if it calls an effectful function. Only effectful functions may
   call effectful functions.
-- **An effect row with `->`** marks *reactive reads* of tables and views.
+- **An effect row with `->`** marks *reactive reads* of tables and queries.
   Reads are deterministic for a given snapshot of the data, so they stay
   unmarked at the call site. The compiler still sees them and turns them into
   subscriptions and sync.
@@ -207,7 +208,7 @@ compile to pure transitions (section 7).
 |---|---|
 | `write todos` | The command runs where `todos` lives, plus an optimistic copy on clients that hold a local copy of it. |
 | `reject [EmptyTitle]` | The check runs on both client and server, and the caller must handle the rejection (section 7). |
-| `read todos` in views that a client reads | Live subscriptions, or replication of `todos` to the client, whichever the cost model prefers. |
+| `read todos` in queries that a client reads | Live subscriptions, or replication of `todos` to the client, whichever the cost model prefers. |
 | An overwrite, as in `toggle!` | Not monotonic, so concurrent writes need a resolution rule. Insert-only logic is monotonic and needs no coordination (the CALM theorem). |
 | `random`, `time` | Provided by each platform. The sim platform derives them from the run's seed. |
 
@@ -227,15 +228,15 @@ checked all the way into the UI.
 | `record`, tag type | | | | | data only |
 | `table` | | | | | placed by the deployment |
 | pure function (`f = \|x\| …`) | | | | | anywhere; inlined |
-| `view` | ✓ | | | | where its data is (server, or a client's local copy) |
+| `query` | ✓ | | | | where its data is (server, or a client's local copy) |
 | `command` | ✓ | ✓ | ✓ | ✓ | where its data lives; also optimistically on clients |
-| `client`, `component` (`state`, `view`) | through views | | | | the client's machine |
-| `action` | through views | its own component's `state` | | only through `do` | the client's machine |
+| `client`, `component`, `page` (`state`, `view`) | through queries | | | | the client's machine |
+| `action` | through queries | its own component's `state` | | only through `do` | the client's machine |
 | `check` | ✓ | | | | evaluated by the simulator |
-| `effect`, `handler` | per operation | | | | section 10 |
+| `effect`, `handler` | per operation | | | | section 11 |
 | `extern` | | | ✓ | is one | machines whose platform provides its capability |
 
-Writing a table inside a `view` is a compile error, not a runtime surprise. So
+Writing a table inside a `query` is a compile error, not a runtime surprise. So
 is assigning to `state` anywhere but an action.
 
 ## 7. Clients
@@ -249,8 +250,10 @@ nothing the compiler or simulator relies on changes.
 
 ### 7.1 The pieces
 
-- **`client`** is the root of a UI, and what `deploy.weft` places
-  (`place App on browser`).
+- **`client`** is the root of a UI, and what a deployment places
+  (`place App on browser`). It's also the layout around every page.
+- **`page`** is a component for one URL; its parameters come from the URL
+  (section 9.4).
 - **`component`** is a reusable piece of UI with parameters and its own state.
   Component names are capitalized, and arguments are named like markup
   attributes (`ItemRow(item: i)`), so components read differently from markup
@@ -258,7 +261,7 @@ nothing the compiler or simulator relies on changes.
 - **`state name = initial`** declares local state. Its type is inferred, or
   written out: `state selected: [None, Some(Id)] = None`.
 - **`view = …`** is the markup: a pure function of the component's parameters,
-  its state and the views it reads. It can't assign.
+  its state and the queries it reads. It can't assign.
 - **`action name(params) { … }`** is the only place state changes.
 
 A component, from the todo-lists example:
@@ -344,13 +347,13 @@ place. Inside a keyed loop (`for i in … key i.id { ItemRow(item: i) }`), the k
 decides which row's state is which: deleting a row discards its state, and a
 row that's re-added starts fresh.
 
-### 7.4 Views read server data directly
+### 7.4 Reading server data
 
-`view` calls `todo_list(show)` as if the data were local. The compiler
-*elaborates* the client into a complete one. It adds hidden state holding the
-client's local copy of synced data, a hidden action that applies incoming
-changes, and subscriptions derived from which views each `view` reads with
-which arguments. After elaboration, every `view` is a pure function of state
+A component's `view` calls the query `todo_list(show)` as if the data were
+local. The compiler *elaborates* the client into a complete one. It adds hidden
+state holding the client's local copy of synced data, a hidden action that
+applies incoming changes, and subscriptions derived from which queries each
+`view` reads with which arguments. After elaboration, every `view` is a pure function of state
 again.
 
 ### 7.5 What it compiles to
@@ -436,13 +439,143 @@ simulate flaky_wifi {
 `deploy local` is the reference semantics from section 1: the same program on
 one machine, with no distribution at all.
 
+This example spells everything out. In a real project, conventions imply most
+of it (section 9.3): `deploy local` is generated, tables go on the machine
+named `server` and the client on the one named `browser`, and `simulate`
+defaults to `topology: prod` and `platform: "weft/sim"`.
+
 The same source compiles to different plans under different hints or data
 sizes. For a personal todo list, replicating all of `todos` to the browser and
-evaluating views locally is cheapest: filters switch instantly and the app
-works offline. For a million rows, running views on the server and pushing only
+evaluating queries locally is cheapest: filters switch instantly and the app
+works offline. For a million rows, running queries on the server and pushing only
 results is cheapest.
 
-## 9. Escape hatches
+## 9. Project layout and conventions
+
+**Decided (2026-11-17):** a weft project follows a fixed layout and naming
+conventions, in the spirit of Rails. The compiler sees the whole program, so
+the layout can't change what a program means. What it does is decide where
+everything goes, so projects are predictable for people, agents and
+generators, and let deployment files state only what's actually a choice.
+
+### 9.1 The layout
+
+From [examples/todo-lists](../examples/todo-lists/README.md):
+
+```text
+todo-lists/
+  weft.toml                  the project's name
+  data/                      records and their tables, one record per file
+    todo_list.weft
+    item.weft
+    filter.weft
+  commands/                  every write, grouped by the table it's mostly about
+    lists.weft
+    items.weft
+  queries/                   every read the client uses, grouped the same way
+    lists.weft
+    items.weft
+  ui/
+    App.weft                 the client: the layout around every page
+    pages/                   one page per URL
+      index.weft             /
+      lists/[id].weft        /lists/:id
+    components/              one component per file, named after it
+      Sidebar.weft
+      ListPanel.weft
+      ItemRow.weft
+  checks/                    invariants: the project's only tests
+    lists.weft
+    items.weft
+  deploy/                    one file per deployment other than local
+    prod.weft
+  simulate/                  one file per simulation
+    two_devices.weft
+    flaky_wifi.weft
+  schema/                    generated and checked in (9.5)
+```
+
+| Folder | Holds | Rails equivalent |
+|---|---|---|
+| `data/` | `record`s, their `table`s, and shared tag types | `app/models` |
+| `commands/` | `command`s | controller actions, without HTTP |
+| `queries/` | `query`s, and pure helpers they use | model scopes |
+| `ui/` | the `client`, `page`s and `component`s | `app/views` plus `config/routes.rb` |
+| `checks/`, `simulate/` | `check`s and simulations | `test/` |
+| `deploy/` | deployments | `config/environments` |
+| `schema/` | generated schema history | `db/schema.rb` |
+
+### 9.2 Naming
+
+- **No `module` lines.** A project is one module, named in `weft.toml`, and
+  every top-level name is visible throughout it.
+- **Files are named after what they hold.** `data/item.weft` holds
+  `record Item`. `ui/components/ItemRow.weft` holds `component ItemRow`.
+  Commands, queries and checks are grouped by table: `commands/items.weft`.
+- **Records are singular** (`Item`), **tables plural** (`items`). Tables are
+  always declared (`table items : Item`); weft never guesses an English plural.
+- **Commands are verbs** (`add_item!`), **queries are nouns** (`items_in`),
+  and **components and pages are capitalized** (`ItemRow`, `ListPage`).
+
+### 9.3 Defaults deployments don't restate
+
+- **`deploy local` is generated.** It's the reference, so it never varies and
+  is never written.
+- **Tables go on the machine named `server`, and the client on the machine
+  named `browser`,** unless a `place` line says otherwise.
+- **Simulations default to `topology: prod` and `platform: "weft/sim"`.**
+- **`weft explain` shows every default it applied,** and why. A convention you
+  can't see is the part of Rails people complain about.
+
+With these, the example's whole production deployment is:
+
+```weft
+deploy prod {
+  machine server  on "weft/server-rust-postgres"
+  machine browser on "weft/browser-ts" { count: many, offline: True }
+
+  consistency lists, items: session
+}
+```
+
+### 9.4 Pages and routes
+
+- **Each file under `ui/pages/` is a page,** and its path is its URL:
+  `index.weft` is `/`, and `lists/[id].weft` is `/lists/:id`.
+- **A page is a component whose parameters come from the URL:**
+  `page ListPage(id: Id) { … }`. If a parameter doesn't parse, the client
+  shows its not-found page.
+- **`ui/App.weft` is the layout around every page.** `outlet` in its view marks
+  where the current page goes.
+- **Links are typed.** `link(to: ListPage(id: list.id)) { … }` links to a page
+  by name and parameters, so a broken link is a compile error. A link to the
+  current page is marked as current.
+- **Actions navigate with `do go(Home)`.**
+- **The URL is state like any other.** The simulator follows links on screen
+  just as it clicks buttons.
+
+### 9.5 Generated files
+
+- **`schema/`** records each deployed version of every table. The compiler
+  diffs against it to produce migrations, and to know what older offline
+  clients expect. It's generated, but checked in and reviewed, like Rails'
+  `db/schema.rb`.
+- **Generators** write ordinary code that you then own, rather than adding
+  invisible behavior. This is a planned command-line interface:
+
+  ```bash
+  weft new todo-lists
+  weft generate resource Item title:Text done:Bool list:Id
+  weft generate component ItemRow
+  weft generate page lists/[id]
+  weft generate simulation flaky_wifi
+  ```
+
+  `generate resource` would write the record and table, create, rename and
+  delete commands, a list query, a row and a form component, and a
+  not-blank check.
+
+## 10. Escape hatches
 
 An **extern** is code weft can't see into. You declare it in weft and implement
 it in each platform's host language. Its capability and its simulation model
@@ -463,7 +596,7 @@ Escape hatches exist at four levels, from least to most manual:
 3. explicit placement of data and code;
 4. writing the physical layer (locations, messages, handlers) directly.
 
-## 10. User-defined effects
+## 11. User-defined effects
 
 Users can declare their own effects and handlers, as in Koka:
 
@@ -494,7 +627,7 @@ placement rule:
 A continuation should never travel over the network, so generators,
 backtracking and async-style control stay local.
 
-## 11. Compilation pipeline
+## 12. Compilation pipeline
 
 The physical side of this pipeline is sketched in two concept notes:
 [jax-analogy.md](jax-analogy.md) (what weft borrows from how JAX handles
@@ -513,22 +646,22 @@ How each part of the example lowers under `deploy prod`:
 |---|---|
 | Pure functions | Inlined into every target that needs them |
 | Commands | A Rust transaction against Postgres on the server, plus an optimistic TypeScript copy against the browser's local data; the server confirms it, or the client rolls back and replays its pending changes |
-| Views | A SQL query plus a change feed, or local TypeScript evaluation if `todos` is replicated |
+| Queries | A SQL query plus a change feed, or local TypeScript evaluation if `todos` is replicated |
 | `App` and its components | TypeScript: each component compiled to the Elm Architecture (section 7.5) on a small runtime, or to fine-grained signals |
 | `table todos` | Schema, migrations, and indexes inferred from use (`sort_by(.created)`) |
 | `!` effects | Calls into each platform; the sim platform runs them deterministically from a seed |
 
-## 12. Testing
+## 13. Testing
 
 - **`check`** declarations are domain invariants, evaluated by the simulator.
-- **Convergence is always checked.** Once sync settles, every client's views
-  must equal the server's. Nobody writes this check; the compiler derives it.
+- **Convergence is always checked.** Once sync settles, every client's query
+  results must equal the server's. Nobody writes this check; the compiler derives it.
 - **`simulate`** blocks drive many simulated clients through the actions on
   their screens (section 7.6), with network faults and offline periods.
   Because actions and views compile to pure functions and every effect is
   declared, a failing seed replays exactly.
 
-## 13. Front ends
+## 14. Front ends
 
 The IR is the product, and the language is one front end for it. A Python
 embedded DSL that emits the same IR remains useful: it proves the semantics
@@ -544,10 +677,10 @@ messages, formatter, language server and highlighting. A plausible stack is
 tree-sitter for editor support plus a Rust compiler built on an incremental
 query engine such as salsa.
 
-## 14. Open decisions
+## 15. Open decisions
 
 1. **Reactive reads.** Unmarked, as proposed, or marked with `!` like every
-   other effect, as Roc would do? *Recommendation:* unmarked, so views stay
+   other effect, as Roc would do? *Recommendation:* unmarked, so queries stay
    readable.
 2. **Effect rows.** Inferred everywhere, or required on public boundaries?
    *Recommendation:* required on commands and externs, since they form the
@@ -576,8 +709,18 @@ query engine such as salsa.
    where a state's name means assignment), or explicit
    (`state.draft = ""`)? *Recommendation:* bare names, with a compile error
    when a local would reuse a state's name.
+10. **Folders as a project grows.** Keep grouping by layer (`commands/`,
+    `queries/`, …), or switch to grouping by feature (`lists/`, `items/`, each
+    with its own data, commands and UI), as Phoenix contexts and Django apps
+    do? *Recommendation:* layers, with subfolders inside a layer once one gets
+    crowded.
+11. **Namespaces.** One flat namespace per project (as proposed), or folders
+    as namespaces? *Recommendation:* flat until names actually collide.
+12. **Routing beyond the basics:** nested layouts, query-string parameters,
+    redirects, a not-found page per section. *Recommendation:* one layout
+    (`App`) and path parameters only, until an example needs more.
 
-## 15. Prior art
+## 16. Prior art
 
 Clones live in `refs/` (see [refs/README.md](../refs/README.md)).
 
@@ -592,3 +735,5 @@ Clones live in `refs/` (see [refs/README.md](../refs/README.md)).
 | Wing (`refs/wing`) | Abstract resources with one implementation per target, including a simulator |
 | TigerBeetle, Maelstrom (`refs/tigerbeetle`, `refs/maelstrom`) | Deterministic simulation, checking against consistency models |
 | Replicache / Zero | Optimistic commands that run on both client and server |
+| Rails, Phoenix | A fixed project layout, generators that write ordinary code, a checked-in schema |
+| SvelteKit, Next.js | Pages as files, with the path as the URL |

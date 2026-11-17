@@ -9,14 +9,17 @@ in commit fb58534, kept for reference. The redesign moves the user-facing layer
 up to a logical program plus placement/consistency annotations.
 
 The current language proposal is [docs/language.md](docs/language.md). Its open
-decisions (section 14) belong to the project owner: don't treat its
+decisions (section 15) belong to the project owner: don't treat its
 recommendations as settled. Concept notes on the physical layer:
 [docs/jax-analogy.md](docs/jax-analogy.md) and
 [docs/infrastructure-primitives.md](docs/infrastructure-primitives.md).
 
 `examples/` holds weft projects written against that proposal, starting with
 [examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:
-they're design artifacts, and each README lists the gaps it exposed.
+they're design artifacts, and each README lists the gaps it exposed. Projects
+follow the conventional layout (`data/`, `commands/`, `queries/`, `ui/`,
+`checks/`, `deploy/`, `simulate/`) in section 9 of the proposal. Server-side
+reads are `query`s; `view` means a component's markup only.
 
 [editors/vscode](editors/vscode/README.md) is a VS Code extension that
 highlights `.weft` files and ```` ```weft ```` blocks in Markdown. When the

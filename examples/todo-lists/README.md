@@ -18,17 +18,50 @@ README is illustrative.
 
 ## Files
 
-| File | What's in it |
-|---|---|
-| [src/data.weft](src/data.weft) | Two records and two tables: `lists` and `items` |
-| [src/logic.weft](src/logic.weft) | Commands (every write) and views (every read the client uses) |
-| [src/app.weft](src/app.weft) | The browser client: components with local state, changed by actions |
-| [src/checks.weft](src/checks.weft) | Invariants. These are the project's only tests. |
-| [deploy.weft](deploy.weft) | Where it runs: `local`, `prod`, and two simulations |
+The project follows weft's conventional layout
+([language.md, section 9](../../docs/language.md)), so where each thing lives is
+predictable:
 
-What's missing on purpose: API routes, fetch calls, JSON, SQL, migrations,
-caching, retry logic, duplicate-request handling, loading states, and tests for
-any of those. The compiler is supposed to produce all of them.
+```text
+todo-lists/
+  weft.toml                  the project's name
+  data/
+    todo_list.weft           record TodoList, table lists
+    item.weft                record Item, table items
+    filter.weft              Filter : [All, Active, Done]
+  commands/
+    lists.weft               create_list!, rename_list!, delete_list!
+    items.weft               add_item!, rename_item!, set_done!, delete_item!, clear_done!
+  queries/
+    lists.weft               all_lists, find_list
+    items.weft               items_in
+  ui/
+    App.weft                 the client: a sidebar beside the current page
+    pages/
+      index.weft             /            Home
+      lists/[id].weft        /lists/:id   ListPage
+    components/
+      Sidebar.weft           every list, as links, and a new-list form
+      ListPanel.weft         one list: rename, add items, filter, delete
+      ItemRow.weft           one item: check off, edit inline, delete
+  checks/
+    lists.weft               names_not_blank
+    items.weft               titles_not_blank, no_orphans
+  deploy/
+    prod.weft                a Postgres server and any number of browsers
+  simulate/
+    two_devices.weft
+    flaky_wifi.weft
+```
+
+What's missing on purpose:
+- `deploy local`, which is generated;
+- API routes, fetch calls, JSON, SQL, migrations, caching, retry logic,
+  duplicate-request handling, loading states, and tests for any of those.
+
+The compiler is supposed to produce all of them. A deployed project would also
+have a generated `schema/` folder; nothing has been deployed, so there isn't
+one.
 
 ## What to look at
 
@@ -63,7 +96,7 @@ either order:
   shows "That list was deleted."
 
 Either way, no item is left without a list. That's the `no_orphans` check in
-[src/checks.weft](src/checks.weft).
+[checks/items.weft](checks/items.weft).
 
 Across devices, a naive backend gets it wrong. It checks that the list exists
 on the phone (where it did), then stores the item on the server without
@@ -96,7 +129,7 @@ The compiler works this out from the code. Nothing in the source asks for it.
 | `delete_list!`, `delete_item!`, `clear_done!` | Removes rows | Ordered with writes to the same rows; late writes to deleted rows are dropped or rejected |
 | All of them | | A request ID per click, so a retried request is applied once |
 
-### 4. Views that look slow but shouldn't be
+### 4. Queries that look slow but shouldn't be
 
 `all_lists()` counts open items separately for every list. Written by hand
 against a server, that's one query per list (the "N+1" problem). The compiler
@@ -132,24 +165,30 @@ Things this example had to assume that [docs/language.md](../../docs/language.md
 doesn't define yet. Each is a design question for the project owner, not a
 decision.
 
-1. **Modules across files.** Every file says `module todo_lists`, treating a
-   directory as one module (like a Go package). There's no import syntax yet.
-2. **Table API.** The example uses `lists.has(id)` and `lists.get(id)`
+1. **Table API.** The example uses `lists.has(id)` and `lists.get(id)`
    returning `[Missing, Found(TodoList)]`. Neither is specified.
-3. **Updating or deleting a missing row.** `set_done!` on an item that was just
+2. **Updating or deleting a missing row.** `set_done!` on an item that was just
    deleted elsewhere: a no-op, or a rejection? The example assumes a no-op,
    which is why `set_done!` has no `reject`.
-4. **References between tables.** `Item.list` is a plain `Id`, so the cascade
+3. **References between tables.** `Item.list` is a plain `Id`, so the cascade
    in `delete_list!` and the `no_orphans` check are written by hand. A
    reference type (`list: Ref(TodoList)` with "delete with parent") would let
    the compiler know the relationship directly.
-5. **One `problem` per component.** `ListPanel` shows rename errors and
+4. **One `problem` per component.** `ListPanel` shows rename errors and
    add-item errors through a single `problem` state, so a failed rename can
    replace the message from a failed add. Separate states work but repeat
    themselves. A per-form error helper, or rejections shown next to the form
    that caused them, would fit better. Relatedly, a rejection that arrives after
    its row was deleted is dropped (language.md, open decision 8).
-6. **Users and authorization.** There are no users: everyone sees every list.
+5. **Users and authorization.** There are no users: everyone sees every list.
    This is open decision 7 in language.md, and per-user lists are the natural
    next version of this example.
-7. **Routing.** The selected list lives in `App`'s state, not the URL.
+6. **Ids in URLs.** `/lists/:id` puts an `Id` in the address bar. What an `Id`
+   looks like there (opaque, short, guessable or not) isn't specified.
+7. **The not-found page.** A page shows the client's not-found page when a URL
+   parameter doesn't parse, but nothing says where that page is defined. A
+   `ui/pages/404.weft` convention is one option.
+8. **Navigating after a command.** `ListPanel`'s `delete` runs `do go(Home)`
+   straight after sending `delete_list!`, before the server confirms it. That's
+   fine here because `delete_list!` can't reject. For a command that can, the
+   rule isn't specified: navigate at once and come back on rejection, or wait.

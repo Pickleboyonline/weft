@@ -16,22 +16,29 @@ change.
 
 ## A project's files
 
+Every project has the same layout, in the spirit of Rails:
+
 ```text
 todo-lists/
-  src/
-    data.weft     records and tables
-    logic.weft    commands (every write) and views (every read)
-    app.weft      the browser client
-    checks.weft   invariants: the project's only tests
-  deploy.weft     where it runs, and simulations
+  weft.toml        the project's name
+  data/            records and their tables, one record per file
+  commands/        every write
+  queries/         every read the client uses
+  ui/
+    App.weft       the client: the layout around every page
+    pages/         one page per URL: lists/[id].weft is /lists/:id
+    components/    one component per file
+  checks/          invariants: the project's only tests
+  deploy/          where it runs
+  simulate/        simulated runs
 ```
 
-Everything in `src/` is written as if it ran on one machine. Only
-`deploy.weft` knows there's more than one.
+Everything outside `deploy/` and `simulate/` is written as if it ran on one
+machine. There are no `module` lines: the project is the module.
 
 ## Data
 
-```weft
+```weft title="data/item.weft"
 record Item {
   key id:  Id   = new_id!()    # `!`: generating an id is an effect
   list:    Id
@@ -40,14 +47,16 @@ record Item {
   created: Time = now!()
 }
 
-Filter : [All, Active, Done]   # a tag union
+table items : Item             # tables are always declared; weft never guesses plurals
+```
 
-table items : Item             # a table of Items, placed by deploy.weft
+```weft title="data/filter.weft"
+Filter : [All, Active, Done]   # a tag union
 ```
 
 ## Commands: every write
 
-```weft
+```weft title="commands/items.weft"
 command add_item!(list: Id, title: Text) {
   cleaned = title.trim()
   if cleaned.is_empty() { reject EmptyTitle }
@@ -62,25 +71,25 @@ command add_item!(list: Id, title: Text) {
 - `reject` stops the command with a reason. The reasons become part of its
   type, and callers must handle them.
 
-## Pure functions and views: every read
+## Queries: every read
 
-```weft
+```weft title="queries/items.weft"
 keeps = |show, i| match show {
   All    -> True
   Active -> not i.done
   Done   -> i.done
 }
 
-view items_in(list: Id, show: Filter) -> List(Item) =
+query items_in(list: Id, show: Filter) -> List(Item) =
   items
     .filter(|i| i.list == list and keeps(show, i))
     .sort_by(.created)
 ```
 
 - `|show, i|` is a function. `match` must handle every case.
-- A `view` may read tables but never write them. Clients subscribe to views,
-  and the compiler decides whether to compute one on the server or on the
-  client's local copy.
+- A `query` may read tables but never write them. Clients subscribe to
+  queries, and the compiler decides whether to compute one on the server or on
+  the client's local copy.
 - `.created` is shorthand for `|i| i.created`.
 
 ## Effects in types
@@ -99,7 +108,7 @@ keeps     : Filter, Item -> Bool
 
 ## The client: components, state and actions
 
-```weft
+```weft title="ui/components/ItemRow.weft"
 component ItemRow(item: Item) {
   state editing = False
   state draft   = ""
@@ -150,28 +159,36 @@ component ItemRow(item: Item) {
 - `input(bind: draft)` keeps the input and the state in step, with no action
   per keystroke.
 
-The root of the UI is a `client`, which `deploy.weft` places on the browser.
-It uses components like markup elements, and passes its own actions down when
-a child needs to tell it something:
+## Pages and the client
+
+Each file in `ui/pages/` is a page, and its path is its URL. A page is a
+component whose parameters come from the URL:
+
+```weft title="ui/pages/lists/[id].weft"
+page ListPage(id: Id) {
+  view = match find_list(id) {
+    Missing     -> p { "This list was deleted on another device" }
+    Found(list) -> ListPanel(list: list)
+  }
+}
+```
+
+The `client` is the layout around every page. `outlet` marks where the current
+page goes:
+
+```weft title="ui/App.weft"
+client App {
+  view = main {
+    Sidebar
+    outlet
+  }
+}
+```
+
+Links name a page and its parameters, so a broken link is a compile error:
 
 ```weft
-client App {
-  state selected: [None, Some(Id)] = None
-
-  view = main {
-    Sidebar(selected: selected, on_select: select)
-    match selected {
-      None     -> p { "Pick a list, or make one" }
-      Some(id) -> match find_list(id) {
-        Missing     -> p { "This list was deleted on another device" }
-        Found(list) -> ListPanel(list: list, on_deleted: deselect)
-      }
-    }
-  }
-
-  action select(id: Id) { selected = Some(id) }
-  action deselect       { selected = None }
-}
+link(to: ListPage(id: row.list.id)) { row.list.name }
 ```
 
 Views read server data (`find_list(id)`, `items_in(…)`) as if it were local;
@@ -181,7 +198,7 @@ pure state update.
 
 ## Checks: the only tests you write
 
-```weft
+```weft title="checks/items.weft"
 check titles_not_blank = items.all(|i| not i.title.trim().is_empty())
 check no_orphans       = items.all(|i| lists.has(i.list))
 ```
@@ -192,28 +209,28 @@ clients must converge with the server.
 
 ## Deployment and simulation
 
-```weft
-deploy local {
-  machine laptop on "weft/local"     # the reference: one process, in memory
-  place everything on laptop
-}
-
+```weft title="deploy/prod.weft"
 deploy prod {
   machine server  on "weft/server-rust-postgres"
   machine browser on "weft/browser-ts" { count: many, offline: True }
-  place lists, items on server
-  place App          on browser
+
   consistency lists, items: session
 }
+```
 
+```weft title="simulate/flaky_wifi.weft"
 simulate flaky_wifi {
-  topology: prod
-  platform: "weft/sim"
-  clients:  3
-  network:  drop 10%, latency 5ms..2s, offline 30%
-  steps:    500 random actions per client
+  clients: 3
+  network: drop 10%, latency 5ms..2s, offline 30%
+  steps:   500 random actions per client
 }
 ```
+
+Conventions fill in the rest:
+- `deploy local`, the one-process reference, is generated.
+- Tables go on the machine named `server`, and the client on `browser`.
+- Simulations run `prod`'s layout on simulated platforms.
+- `weft explain` lists every default it applied.
 
 ## Escape hatches
 

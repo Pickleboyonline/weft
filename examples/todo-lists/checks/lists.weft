@@ -1,0 +1,12 @@
+# Invariants about lists.
+#
+# The files in checks/ are the only tests in the project. The simulator
+# evaluates them on the server's data after every step of every simulated run,
+# and on each browser's copy once sync settles.
+#
+# Two more checks are always on and never written here:
+#   - every simulated run must match some one-machine run of the same
+#     commands (the oracle);
+#   - once sync settles, every browser's query results equal the server's.
+
+check names_not_blank = lists.all(|l| not l.name.trim().is_empty())

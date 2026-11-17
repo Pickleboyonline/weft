@@ -73,11 +73,27 @@ instead of sitting in one model. The compiler still keeps every component's
 state in one tree, so logging, replay and debugging see all of it; only the
 source is spread out.
 
-## Why can't a view write?
+## Why can't a query write?
 
-**By design.** Views are recomputed whenever their data changes, and clients
+**By design.** Queries are recomputed whenever their data changes, and clients
 subscribe to them. A write inside one would run an unpredictable number of
-times, on unpredictable machines. Writing in a `view` is a compile error.
+times, on unpredictable machines. Writing in a `query` is a compile error.
+
+## Why are server reads called queries, not views?
+
+**By design.** weft used to call them views, which collided twice: with a
+component's `view` (its markup), and with what "views" means to anyone coming
+from Rails or most web frameworks (UI templates). Now `query` means a read of
+server data, and `view` means markup.
+
+## Why does every project have the same layout?
+
+**By design.** The compiler sees the whole program, so the layout can't change
+what a program means. A fixed layout makes every project predictable, for
+people, AI agents and generators alike, and lets conventions supply defaults:
+the reference deployment is generated, tables go on the server, the client
+goes on the browser. `weft explain` shows every default it applied, so nothing
+is hidden.
 
 ## Why no exceptions?
 

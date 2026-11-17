@@ -1,0 +1,7 @@
+# Three browsers on bad wifi: dropped messages, and offline a third of the time.
+
+simulate flaky_wifi {
+  clients: 3
+  network: drop 10%, latency 5ms..2s, offline 30%
+  steps:   500 random actions per client
+}

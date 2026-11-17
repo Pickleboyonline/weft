@@ -1,0 +1,22 @@
+# Every write to `lists`.
+#
+# Commands are written as if the app ran on one machine. Nothing here mentions
+# the network, retries, locks or duplicate requests: the compiler adds those
+# where the logic needs them (README, "What to look at").
+
+command create_list!(name: Text) {
+  cleaned = name.trim()
+  if cleaned.is_empty() { reject EmptyName }
+  lists.insert!(TodoList { name: cleaned })
+}
+
+command rename_list!(id: Id, name: Text) {
+  cleaned = name.trim()
+  if cleaned.is_empty() { reject EmptyName }
+  lists.update!(id, |l| { ..l, name: cleaned })
+}
+
+command delete_list!(id: Id) {
+  items.delete!(|i| i.list == id)        # a list's items go with it
+  lists.delete!(|l| l.id == id)
+}

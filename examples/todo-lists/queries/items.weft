@@ -1,0 +1,12 @@
+# Reads of `items` that the client uses.
+
+keeps = |show, i| match show {
+  All    -> True
+  Active -> not i.done
+  Done   -> i.done
+}
+
+query items_in(list: Id, show: Filter) -> List(Item) =
+  items
+    .filter(|i| i.list == list and keeps(show, i))
+    .sort_by(.created)

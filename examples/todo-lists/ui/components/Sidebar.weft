@@ -1,0 +1,33 @@
+# Every list with its count of open items, and a form for a new one. Each list
+# is a link to its page; the link to the page you're on is marked as current.
+
+component Sidebar {
+  state name    = ""
+  state problem = None
+
+  view = nav {
+    ul {
+      for row in all_lists() key row.list.id {
+        li {
+          link(to: ListPage(id: row.list.id)) {
+            span { row.list.name }
+            span(class: "count") { "${row.open}" }
+          }
+        }
+      }
+    }
+    form(on_submit: create) {
+      input(bind: name, placeholder: "New list")
+    }
+    match problem {
+      None      -> nothing
+      EmptyName -> p(class: "error") { "A list needs a name" }
+    }
+  }
+
+  action create {
+    problem = None
+    do create_list!(name) else |err| problem = err
+    name = ""
+  }
+}

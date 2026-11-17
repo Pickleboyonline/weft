@@ -1,0 +1,8 @@
+# Two browsers on a slow but reliable network. Simulations run prod's layout
+# on simulated platforms by default (language.md, section 9.3).
+
+simulate two_devices {
+  clients: 2
+  network: latency 5ms..2s
+  steps:   300 random actions per client
+}

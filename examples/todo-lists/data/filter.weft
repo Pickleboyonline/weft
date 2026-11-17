@@ -1,0 +1,4 @@
+# Which items a list shows. A tag type shared by queries and the UI, so it
+# lives with the data.
+
+Filter : [All, Active, Done]

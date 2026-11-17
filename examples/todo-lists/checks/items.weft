@@ -1,0 +1,8 @@
+# Invariants about items.
+
+check titles_not_blank = items.all(|i| not i.title.trim().is_empty())
+
+# Every item belongs to a list that exists. On one machine this can't
+# break: delete_list! removes a list's items, and add_item! rejects a
+# missing list. Across devices it can (README, "The delete race").
+check no_orphans = items.all(|i| lists.has(i.list))

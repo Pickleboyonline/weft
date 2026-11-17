@@ -1,0 +1,12 @@
+# /lists/:id
+#
+# `id` comes from the URL. If it isn't a valid Id, the client shows its
+# not-found page. If it's valid but the list is gone, that's an ordinary case
+# the page handles: someone may have deleted it on another device.
+
+page ListPage(id: Id) {
+  view = match find_list(id) {
+    Missing     -> p { "This list was deleted on another device" }
+    Found(list) -> ListPanel(list: list)
+  }
+}

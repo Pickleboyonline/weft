@@ -56,8 +56,8 @@ expect("effectful method", "  lists.insert!(TodoList { name: cleaned })", [
   ["TodoList", "entity.name.type"],
 ]);
 
-expect("view", "view items_in(list: Id, show: Filter) -> List(Item) =", [
-  ["view", "storage.type.view"],
+expect("query", "query items_in(list: Id, show: Filter) -> List(Item) =", [
+  ["query", "storage.type.query"],
   ["items_in", "entity.name.function"],
   ["->", "keyword.operator.arrow"],
   ["List", "support.type.builtin"],
@@ -147,6 +147,31 @@ expect("components, state and actions",
     ["filter", "entity.name.function"],
     ["on_deleted", "variable.other.property", 0],
     ["on_deleted", "entity.name.function", 1],
+  ]);
+
+expect("pages, links and the layout",
+  `page ListPage(id: Id) {
+  view = match find_list(id) {
+    Found(list) -> ListPanel(list: list)
+  }
+}
+client App {
+  view = main {
+    Sidebar
+    outlet
+  }
+}
+link(to: ListPage(id: row.list.id)) { row.list.name }
+do go(Home)`,
+  [
+    ["page", "storage.type.page"],
+    ["ListPage", "entity.name.type.class"],
+    ["view", "storage.type.view", 0],
+    ["Sidebar", "entity.name.type"],
+    ["outlet", "constant.language"],
+    ["link", "entity.name.tag"],
+    ["go", "entity.name.function"],
+    ["Home", "entity.name.type"],
   ]);
 
 expect("client with a typed state", "client App {\n  state selected: [None, Some(Id)] = None\n}", [

@@ -1,0 +1,16 @@
+# A server with Postgres, and any number of browsers.
+#
+# Nothing outside deploy/ and simulate/ changes between deployments. By
+# convention (language.md, section 9.3):
+#   - `deploy local`, the one-process reference every run is checked against,
+#     is generated and never written;
+#   - tables go on the machine named `server`, and the client on `browser`.
+
+deploy prod {
+  machine server  on "weft/server-rust-postgres"
+  machine browser on "weft/browser-ts" { count: many, offline: True }
+
+  # Each browser always sees its own changes, and may briefly show
+  # stale data from other devices until it syncs.
+  consistency lists, items: session
+}

@@ -32,7 +32,7 @@ setting, `session`:
   some one-at-a-time order of every client's commands.
 - **You see your own changes immediately.** A client applies its own commands
   locally first, and the server confirms or rejects them later.
-- **Clients converge.** Once messages stop flowing, every client's views equal
+- **Clients converge.** Once messages stop flowing, every client's query results equal
   the server's.
 - **Your checks hold.** Every `check` holds on the server after every step.
   A client's copy is checked once its sync settles.
@@ -63,7 +63,7 @@ Every simulated run is checked three ways:
    it has synced.
 2. **The oracle:** the run's final data must match some one-at-a-time order of
    the same commands on the one-machine program.
-3. **Convergence:** once the simulated network goes quiet, every client's views
+3. **Convergence:** once the simulated network goes quiet, every client's query results
    must equal the server's.
 
 The simulator is deterministic. All randomness (the network, extern models,

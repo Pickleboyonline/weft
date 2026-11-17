@@ -1,0 +1,5 @@
+# /
+
+page Home {
+  view = p { "Pick a list, or make one" }
+}

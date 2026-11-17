@@ -73,7 +73,7 @@ reads tensor shapes from a program. An analytics table added to the todo app:
 ```weft
 table events : Event                     # only ever insert!-ed
 
-view daily_active() -> List({ day: Date, users: U64 }) =
+query daily_active() -> List({ day: Date, users: U64 }) =
   events
     .group_by(|e| e.at.day())
     .map(|g| { day: g.key, users: g.distinct(.user).count() })
@@ -83,7 +83,7 @@ view daily_active() -> List({ day: Date, users: U64 }) =
 |---|---|
 | Only `insert!` is ever called on `events` | Append-only: no in-place updates, so LSM or columnar storage is fine |
 | Queries group by a time field | Partition by time |
-| A view aggregates over a range | Maintain it incrementally, as a daily rollup |
+| A query aggregates over a range | Maintain it incrementally, as a daily rollup |
 | No query reads old events individually | Old partitions can move to cheap storage |
 
 Together that's the design of a time-series database, and nobody named one.
@@ -101,7 +101,7 @@ which real guarantees, much as a PJRT plugin describes a device:
 - **Redis:** the memory tier.
 - **S3:** the object-store tier.
 
-A *plan* assigns each table and view to primitives that the available
+A *plan* assigns each table and query to primitives that the available
 platforms provide, satisfying the program's behavior annotations and budgets.
 `weft explain` shows the plan:
 

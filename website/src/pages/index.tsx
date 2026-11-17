@@ -10,11 +10,11 @@ import styles from './index.module.css';
 const ideas = [
   {
     title: 'One program is the spec',
-    body: 'Write data, commands, views and the UI as if everything ran on one machine. That program is what everything else is checked against.',
+    body: 'Write data, commands, queries and the UI as if everything ran on one machine. That program is what everything else is checked against.',
   },
   {
     title: 'Where it runs is a separate file',
-    body: 'deploy.weft says which machines exist, where each table lives and how fresh each screen must be. The logic stays the same.',
+    body: 'Files in deploy/ say which machines exist, where each table lives and how fresh each screen must be. The logic stays the same.',
   },
   {
     title: 'A simulator checks the rest',
@@ -29,7 +29,7 @@ const sample = `command add_item!(list: Id, title: Text) {
   items.insert!(Item { list: list, title: cleaned })
 }
 
-view items_in(list: Id, show: Filter) -> List(Item) =
+query items_in(list: Id, show: Filter) -> List(Item) =
   items.filter(|i| i.list == list and keeps(show, i)).sort_by(.created)`;
 
 export default function Home(): ReactNode {
@@ -74,11 +74,11 @@ export default function Home(): ReactNode {
         <section className={styles.sample}>
           <h2>What it looks like</h2>
           <p>
-            A command and a view from the todo-lists example. No routes, no fetch calls, no SQL:
+            A command and a query from the todo-lists example. No routes, no fetch calls, no SQL:
             the <code>!</code> marks what changes the world, and <code>reject</code> reasons become
             part of the command's type.
           </p>
-          <CodeBlock language="weft" title="src/logic.weft">
+          <CodeBlock language="weft" title="commands/items.weft, queries/items.weft">
             {sample}
           </CodeBlock>
         </section>

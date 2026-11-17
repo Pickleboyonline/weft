@@ -39,7 +39,7 @@ piece at a time.
 **Today:** routes, request handlers, fetch calls, serialization, and client
 types kept in step with server types by hand.
 
-**In weft:** the client sends a command and reads a view as if both were
+**In weft:** the client sends a command and reads a query as if both were
 local:
 
 ```weft

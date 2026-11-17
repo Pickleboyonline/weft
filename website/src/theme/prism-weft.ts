@@ -9,7 +9,7 @@ import type * as PrismNamespace from 'prismjs';
 const ident = String.raw`[a-z_][A-Za-z0-9_]*`;
 
 const markupTags =
-  'main|nav|section|header|footer|article|aside|div|form|input|textarea|select|option|label|button|checkbox|ul|ol|li|span|p|a|img|h[1-6]|strong|em|code|pre|br|hr';
+  'main|nav|section|header|footer|article|aside|div|form|input|textarea|select|option|label|button|checkbox|ul|ol|li|span|p|a|link|img|h[1-6]|strong|em|code|pre|br|hr';
 
 export default function registerWeft(Prism: typeof PrismNamespace): void {
   // A string's ${...} interpolation is highlighted with the whole grammar, so
@@ -30,13 +30,13 @@ export default function registerWeft(Prism: typeof PrismNamespace): void {
       },
     },
     declaration: {
-      pattern: /\b(?:module|import|record|table|command|view|client|component|state|action|check|effect|handler|extern|fun|ctl|final|deploy|simulate|machine|place|consistency|durability|budget|pin|sync|needs|sim)\b/,
+      pattern: /\b(?:module|import|record|table|command|query|view|client|component|page|state|action|check|effect|handler|extern|fun|ctl|final|deploy|simulate|machine|place|consistency|durability|budget|pin|sync|needs|sim)\b/,
       alias: 'keyword',
     },
     control: /\b(?:if|else|match|for|in|key|do|reject)\b/,
     logical: /\b(?:and|or|not)\b/,
     boolean: /\b(?:True|False)\b/,
-    'constant-language': /\b(?:none|nothing)\b/,
+    'constant-language': /\b(?:none|nothing|outlet)\b/,
     tag: new RegExp(String.raw`\b(?:${markupTags})\b(?=\s*[({])`),
     // A name followed by `!` is effectful: the bang gets its own token.
     function: {

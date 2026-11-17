@@ -1,0 +1,30 @@
+# Every write to `items`.
+
+command add_item!(list: Id, title: Text) {
+  cleaned = title.trim()
+  if cleaned.is_empty() { reject EmptyTitle }
+  if not lists.has(list) { reject NoSuchList }    # it may have been deleted on another device
+  items.insert!(Item { list: list, title: cleaned })
+}
+
+command rename_item!(id: Id, title: Text) {
+  cleaned = title.trim()
+  if cleaned.is_empty() { reject EmptyTitle }
+  items.update!(id, |i| { ..i, title: cleaned })
+}
+
+# set_done!, not toggle!. A checkbox click means "make it done" (or
+# "make it not done"), so the command says that. If two devices both
+# tick the box, the item ends up done, which is what both people meant.
+# A toggle! would flip it twice and leave it not done.
+command set_done!(id: Id, done: Bool) {
+  items.update!(id, |i| { ..i, done: done })
+}
+
+command delete_item!(id: Id) {
+  items.delete!(|i| i.id == id)
+}
+
+command clear_done!(list: Id) {
+  items.delete!(|i| i.list == list and i.done)
+}

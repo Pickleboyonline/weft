@@ -32,7 +32,7 @@ starts a second VS Code window with the extension loaded.
 
 | Construct | Example | Scope |
 |---|---|---|
-| Declarations | `command`, `view`, `record`, `table`, `client`, `check`, `effect`, `handler`, `extern` | `storage.type.*` |
+| Declarations | `command`, `query`, `record`, `table`, `client`, `component`, `page`, `state`, `action`, `check`, `effect`, `handler`, `extern` | `storage.type.*` |
 | The effect marker | the `!` in `insert!`, and `=>` | `keyword.other.effect` |
 | Effect rows | `! <write todos, reject [EmptyTitle]>` | `meta.effects`, with `read`/`write`/`reject`/`random`/`time` as `keyword.other.effect.kind` |
 | Control flow | `if`, `else`, `match`, `for`, `in`, `key`, `do`, `reject` | `keyword.control` |

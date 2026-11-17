@@ -1,0 +1,9 @@
+# The client: the layout around every page. `outlet` is where the current page
+# goes. Which list is open lives in the URL (ui/pages/), not in state here.
+
+client App {
+  view = main {
+    Sidebar
+    outlet
+  }
+}

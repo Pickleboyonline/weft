@@ -154,14 +154,14 @@
           }
         },
         {
-          "match": "\\b(view|check)\\s+([a-z_][A-Za-z0-9_]*)",
+          "match": "\\b(query|check)\\s+([a-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.$1.weft" },
             "2": { "name": "entity.name.function.weft" }
           }
         },
         {
-          "match": "\\b(client|component)\\s+([A-Z][A-Za-z0-9_]*)",
+          "match": "\\b(client|component|page)\\s+([A-Z][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.$1.weft" },
             "2": { "name": "entity.name.type.class.weft" }
@@ -335,13 +335,13 @@
         { "name": "keyword.control.weft", "match": "\\b(if|else|match|for|in|key|do|reject)\\b" },
         { "name": "keyword.operator.wordlike.logical.weft", "match": "\\b(and|or|not)\\b" },
         { "name": "constant.language.boolean.weft", "match": "\\b(True|False)\\b" },
-        { "name": "constant.language.weft", "match": "\\b(none|nothing)\\b" }
+        { "name": "constant.language.weft", "match": "\\b(none|nothing|outlet)\\b" }
       ]
     },
 
     "markup": {
       "comment": "UI elements in a client view: li { ... }, button(on_click: ...) { ... }",
-      "match": "\\b(main|nav|section|header|footer|article|aside|div|form|input|textarea|select|option|label|button|checkbox|ul|ol|li|span|p|a|img|h[1-6]|strong|em|code|pre|br|hr)\\b(?=\\s*[({])",
+      "match": "\\b(main|nav|section|header|footer|article|aside|div|form|input|textarea|select|option|label|button|checkbox|ul|ol|li|span|p|a|link|img|h[1-6]|strong|em|code|pre|br|hr)\\b(?=\\s*[({])",
       "name": "entity.name.tag.weft"
     },
 

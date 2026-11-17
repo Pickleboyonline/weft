@@ -1,0 +1,44 @@
+module todo_lists
+
+# ── Where the program runs ────────────────────────────────────
+#
+# The source in src/ never changes between these. Only this file
+# says where things run and how fresh each screen must be.
+
+# The reference: one process, in memory, no network. Every other run
+# is checked against what this one could have done.
+deploy local {
+  machine laptop on "weft/local"
+  place everything on laptop
+}
+
+# A server with Postgres, and any number of browsers.
+deploy prod {
+  machine server  on "weft/server-rust-postgres"
+  machine browser on "weft/browser-ts" { count: many, offline: True }
+
+  place lists, items on server
+  place App          on browser
+
+  # Each browser always sees its own changes, and may briefly show
+  # stale data from other devices until it syncs.
+  consistency lists, items: session
+}
+
+# ── Simulations: prod's layout on fake machines and a fake network ──
+
+simulate two_devices {
+  topology: prod
+  platform: "weft/sim"
+  clients:  2
+  network:  latency 5ms..2s
+  steps:    300 random msgs per client
+}
+
+simulate flaky_wifi {
+  topology: prod
+  platform: "weft/sim"
+  clients:  3
+  network:  drop 10%, latency 5ms..2s, offline 30%
+  steps:    500 random msgs per client
+}

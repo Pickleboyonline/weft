@@ -14,6 +14,10 @@ recommendations as settled. Concept notes on the physical layer:
 [docs/jax-analogy.md](docs/jax-analogy.md) and
 [docs/infrastructure-primitives.md](docs/infrastructure-primitives.md).
 
+`examples/` holds weft projects written against that proposal, starting with
+[examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:
+they're design artifacts, and each README lists the gaps it exposed.
+
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,

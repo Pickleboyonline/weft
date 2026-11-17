@@ -1,0 +1,20 @@
+module todo_lists
+
+# ── Invariants ────────────────────────────────────────────────
+#
+# These are the only tests in the project. The simulator evaluates
+# them on the server's data after every step of every simulated run,
+# and on each browser's copy once sync settles.
+#
+# Two more checks are always on and never written here:
+#   - every simulated run must match some one-machine run of the same
+#     commands (the oracle);
+#   - once sync settles, every browser's views equal the server's.
+
+check names_not_blank  = lists.all(|l| not l.name.trim().is_empty())
+check titles_not_blank = items.all(|i| not i.title.trim().is_empty())
+
+# Every item belongs to a list that exists. On one machine this can't
+# break: delete_list! removes a list's items, and add_item! rejects a
+# missing list. Across devices it can (README, "The delete race").
+check no_orphans = items.all(|i| lists.has(i.list))

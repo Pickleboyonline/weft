@@ -118,7 +118,45 @@ expect("for loop", "for row in all_lists() key row.list.id {", [
   ["list", "variable.other.property"],
 ]);
 
-expect("words", "  Active -> not i.done\n  None -> (m, none)\n  x = a and b or c", [
+expect("components, state and actions",
+  `component ListPanel(list: TodoList, on_deleted: action) {
+  state draft = ""
+  view = section {
+    form(on_submit: add) { input(bind: draft) }
+  }
+  action add {
+    do add_item!(list.id, draft) else |err| problem = err
+    draft = ""
+  }
+  action filter(f: Filter) { show = f }
+  action delete { do on_deleted() }
+}`,
+  [
+    ["component", "storage.type.component"],
+    ["ListPanel", "entity.name.type.class"],
+    ["action", "support.type.builtin", 0],
+    ["state", "storage.type.state"],
+    ["draft", "variable.other.definition", 0],
+    ["view", "storage.type.view"],
+    ["section", "entity.name.tag"],
+    ["bind", "variable.other.property"],
+    ["action", "storage.type.action", 1],
+    ["add", "entity.name.function", 1],
+    ["do", "keyword.control"],
+    ["err", "variable.parameter"],
+    ["filter", "entity.name.function"],
+    ["on_deleted", "variable.other.property", 0],
+    ["on_deleted", "entity.name.function", 1],
+  ]);
+
+expect("client with a typed state", "client App {\n  state selected: [None, Some(Id)] = None\n}", [
+  ["client", "storage.type.client"],
+  ["App", "entity.name.type.class"],
+  ["state", "storage.type.state"],
+  ["selected", "variable.other.definition"],
+]);
+
+expect("words","  Active -> not i.done\n  None -> (m, none)\n  x = a and b or c", [
   ["not", "keyword.operator.wordlike"],
   ["none", "constant.language"],
   ["and", "keyword.operator.wordlike"],

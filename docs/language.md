@@ -65,7 +65,7 @@ the invariants of your domain.
 | 3 | Platforms provide every effect; the language has no I/O of its own. The compiler picks each platform's implementations at compile time. | Roc |
 | 4 | Only effects that resume once, or never, may cross machines. Continuation-capturing control stays on one machine. | Koka's operation kinds |
 | 5 | Errors and messages are structural tags, so a server's rejection reasons flow into UI types and `match` is exhaustive. | Roc |
-| 6 | Clients follow the Elm Architecture: pure `update` and `view`, effects returned as data. | Elm |
+| 6 | Clients are components with local `state`, changed only by named `action`s; effects leave as commands. It compiles to the Elm Architecture: pure transitions, with messages as data. | Elm (the model); Svelte, Redux Toolkit (the syntax) |
 | 7 | `{ ..r, f: v }` updates in place when nothing else references `r`. | Roc, Koka (Perceus) |
 
 ## 4. A complete example
@@ -117,35 +117,25 @@ view todo_list(show: Filter) -> List(Todo) =
 view remaining() -> U64 =
   todos.count(|t| not t.done)
 
-# ── Client: the Elm Architecture ──────────────────────────────
+# ── Client: local state, changed by actions ──────────────────
 
 client App {
-  Model : { draft: Text, show: Filter, problem: [None, EmptyTitle] }
-  init  = { draft: "", show: All, problem: None }
+  state draft   = ""
+  state show    = All
+  state problem = None
 
-  Msg : [Typed(Text), Submit, Toggle(Id), Show(Filter), ClearDone, Rejected(_)]
-
-  update = |m, msg| match msg {
-    Typed(text)   -> ({ ..m, draft: text, problem: None }, none)
-    Submit        -> ({ ..m, draft: "" }, do add_todo!(m.draft) else Rejected)
-    Toggle(id)    -> (m, do toggle!(id))
-    Show(f)       -> ({ ..m, show: f }, none)
-    ClearDone     -> (m, do clear_done!())
-    Rejected(err) -> ({ ..m, problem: err }, none)
-  }
-
-  view = |m| main {
-    form(on_submit: Submit) {
-      input(value: m.draft, placeholder: "What needs doing?", on_input: Typed)
+  view = main {
+    form(on_submit: add) {
+      input(bind: draft, placeholder: "What needs doing?")
     }
-    match m.problem {
+    match problem {
       None       -> nothing
       EmptyTitle -> p(class: "error") { "Title can't be empty" }
     }
     ul {
-      for t in todo_list(m.show) key t.id {
+      for t in todo_list(show) key t.id {
         li {
-          checkbox(checked: t.done, on_change: Toggle(t.id))
+          checkbox(checked: t.done, on_change: tick(t.id))
           span(class: if t.done "done" else "") { t.title }
         }
       }
@@ -153,19 +143,29 @@ client App {
     footer {
       span { "${remaining()} left" }
       for f in [All, Active, Done] {
-        button(on_click: Show(f), pressed: m.show == f) { f.to_str() }
+        button(on_click: filter(f), pressed: show == f) { f.to_str() }
       }
-      button(on_click: ClearDone) { "Clear done" }
+      button(on_click: clear) { "Clear done" }
     }
   }
+
+  action add {
+    problem = None
+    do add_todo!(draft) else |err| problem = err
+    draft = ""
+  }
+
+  action tick(id: Id)     { do toggle!(id) }
+  action filter(f: Filter) { show = f }
+  action clear            { do clear_done!() }
 }
 
 check titles_not_blank = todos.all(|t| not t.title.trim().is_empty())
 ```
 
 The file contains no fetch calls, API routes, loading code, cache
-invalidation, or serialization. `view` reads `todo_list(m.show)` as if the data
-were local, and `update` returns commands as data.
+invalidation, or serialization. `view` reads `todo_list(show)` as if the data
+were local. Actions change local state directly and send commands with `do`.
 
 ## 5. Effects
 
@@ -191,9 +191,15 @@ clear_done! : {}   => {}  ! <write todos>
 keeps       : Filter, Todo -> Bool
 todo_list   : Filter -> List(Todo)  ! <read todos>
 remaining   : {}     -> U64         ! <read todos>
-App.update  : Model, Msg -> (Model, Cmd(Msg))
-App.view    : Model -> Html(Msg)    ! <read todo_list, remaining>
+App.problem : [None, EmptyTitle]   # inferred from `problem = err` in `add`
+App.add     : action                ! <set draft, problem; do add_todo!>
+App.tick    : Id -> action          ! <do toggle!>
+App.view    : Html                  ! <read todo_list, remaining>
 ```
+
+An action's row lists the state it sets and the commands it sends. Setting
+local state isn't a change to the world, so actions don't carry `!`: they
+compile to pure transitions (section 7).
 
 ### 5.3 What the compiler does with them
 
@@ -209,8 +215,9 @@ App.view    : Model -> Html(Msg)    ! <read todo_list, remaining>
 
 `reject` is an effect that never resumes: it aborts the transaction. Its
 reasons are structural tags that become part of the command's type. If
-`add_todo!` later gains `reject TooLong`, the compiler flags `App.Model`'s
-`problem` field and the `match` in `App.view`. Server-side error cases are
+`add_todo!` later gains `reject TooLong`, the inferred type of `App`'s `problem`
+state grows to `[None, EmptyTitle, TooLong]`, and the compiler flags the `match`
+on it in `App`'s view as no longer exhaustive. Server-side error cases are
 checked all the way into the UI.
 
 ## 6. Declarations
@@ -222,32 +229,169 @@ checked all the way into the UI.
 | pure function (`f = \|x\| …`) | | | | | anywhere; inlined |
 | `view` | ✓ | | | | where its data is (server, or a client's local copy) |
 | `command` | ✓ | ✓ | ✓ | ✓ | where its data lives; also optimistically on clients |
-| `client` (`update`, `view`) | through views | | | only through `do` | the client's machine |
+| `client`, `component` (`state`, `view`) | through views | | | | the client's machine |
+| `action` | through views | its own component's `state` | | only through `do` | the client's machine |
 | `check` | ✓ | | | | evaluated by the simulator |
 | `effect`, `handler` | per operation | | | | section 10 |
 | `extern` | | | ✓ | is one | machines whose platform provides its capability |
 
-Writing a table inside a `view` is a compile error, not a runtime surprise.
+Writing a table inside a `view` is a compile error, not a runtime surprise. So
+is assigning to `state` anywhere but an action.
 
 ## 7. Clients
 
-Clients follow the Elm Architecture: a `Model`, a `Msg` union, a pure
-`update`, and a pure `view`.
+**Decided (2026-11-17):** clients are written as components with local state,
+changed by named actions. This replaces the earlier Elm-style client (a
+`Model`, a `Msg` union and an `update` function), which was correct but heavy:
+every interaction needed a message variant plus an `update` branch, and all
+state was global. The compiled form is still the Elm Architecture (7.5), so
+nothing the compiler or simulator relies on changes.
 
-- **`do` turns a command call into a value.** `update` is pure, so it can't
-  call `add_todo!` directly. `do add_todo!(m.draft)` builds a command value
-  that the platform runs, like Elm's `Cmd`.
+### 7.1 The pieces
+
+- **`client`** is the root of a UI, and what `deploy.weft` places
+  (`place App on browser`).
+- **`component`** is a reusable piece of UI with parameters and its own state.
+  Component names are capitalized, and arguments are named like markup
+  attributes (`ItemRow(item: i)`), so components read differently from markup
+  elements (`li`) and functions.
+- **`state name = initial`** declares local state. Its type is inferred, or
+  written out: `state selected: [None, Some(Id)] = None`.
+- **`view = …`** is the markup: a pure function of the component's parameters,
+  its state and the views it reads. It can't assign.
+- **`action name(params) { … }`** is the only place state changes.
+
+A component, from the todo-lists example:
+
+```weft
+component ItemRow(item: Item) {
+  state editing = False
+  state draft   = ""
+  state problem = None
+
+  view = li {
+    checkbox(checked: item.done, on_change: done(not item.done))
+    if editing {
+      form(on_submit: save) {
+        input(bind: draft)
+        button(on_click: cancel) { "Cancel" }
+      }
+    } else {
+      span(class: if item.done "done" else "", on_click: edit) { item.title }
+    }
+    match problem {
+      None       -> nothing
+      EmptyTitle -> p(class: "error") { "An item needs a title" }
+    }
+    button(on_click: remove) { "Delete" }
+  }
+
+  action edit {
+    editing = True
+    draft = item.title
+  }
+
+  action cancel { editing = False }
+
+  action save {
+    editing = False
+    do rename_item!(item.id, draft) else |err| problem = err
+  }
+
+  action done(d: Bool) { do set_done!(item.id, d) }
+  action remove        { do delete_item!(item.id) }
+}
+```
+
+### 7.2 Actions
+
+- **Assignments set state.** Inside an action, `draft = ""` sets the
+  component's state named `draft`. Any other name introduces a local value,
+  as in commands (`cleaned = draft.trim()`). A local can't reuse a state's
+  name.
+- **Statements run in order,** and later ones see earlier assignments.
+- **`do` sends a command.** It evaluates its arguments where it appears, and
+  sends the command when the action finishes. That's also when the command is
+  applied optimistically to the client's local copy of the data.
 - **`else` is required exactly when the command can reject.** `do
-  add_todo!(…)` without `else` doesn't compile; `do toggle!(…)` needs none.
-- **Views read server data directly.** `view` calls `todo_list(m.show)` as if
-  it were local. The compiler *elaborates* the client into a complete one: it
-  adds a hidden model field holding the client's local copy of synced data, a
-  hidden message for incoming changes, and subscriptions derived from which
-  views `view` reads with which arguments. After elaboration, `view` is a pure
-  function of the model again.
-- **UI markup is part of the language.** Trailing blocks (`ul { … }`) and keyed
-  loops (`for t in … key t.id`) are typed against `Msg`, so a misspelled
-  message is a compile error.
+  rename_item!(…)` without `else` doesn't compile; `do set_done!(…)` needs
+  none. The body after `else |err|` is a small action. It runs when the
+  rejection arrives, against the component's state at that time. If the
+  component no longer exists, the handler is dropped; the optimistic change is
+  still rolled back.
+- **Events take actions.** `on_click: save` passes an action, and
+  `on_change: done(True)` passes one with its arguments. If the event carries
+  a value (text, a checked flag), it's passed as the action's last argument:
+  `on_input: search` with `action search(q: Text)`.
+- **`bind:` connects an input to state both ways.** `input(bind: draft)` needs
+  no action for keystrokes.
+- **Data goes down, actions go up.** A parent passes its own action to a child
+  as a parameter: `Sidebar(selected: selected, on_select: select)`. The child
+  declares it as `on_select: Id -> action` and uses it like any other action:
+  `on_click: on_select(row.list.id)`.
+- **`do` also runs another action.** Inside an action, `do on_deleted()` runs
+  an action (often one passed down from a parent) right after this one
+  finishes. So `do` always means "after this action, do this": send a command,
+  or run an action.
+
+Markup is typed against the actions in scope, so a misspelled action, or one
+given the wrong arguments, is a compile error.
+
+### 7.3 Identity and lifetime
+
+A component's state lives as long as the component is rendered in the same
+place. Inside a keyed loop (`for i in … key i.id { ItemRow(item: i) }`), the key
+decides which row's state is which: deleting a row discards its state, and a
+row that's re-added starts fresh.
+
+### 7.4 Views read server data directly
+
+`view` calls `todo_list(show)` as if the data were local. The compiler
+*elaborates* the client into a complete one. It adds hidden state holding the
+client's local copy of synced data, a hidden action that applies incoming
+changes, and subscriptions derived from which views each `view` reads with
+which arguments. After elaboration, every `view` is a pure function of state
+again.
+
+### 7.5 What it compiles to
+
+Each component compiles to the Elm Architecture. For `App` in section 4, the
+compiler generates the equivalent of:
+
+```weft
+# generated, not written
+Msg : [Add, Tick(Id), Filter(Filter), Clear, DraftChanged(Text), AddRejected([EmptyTitle])]
+
+update = |s, msg| match msg {
+  Add             -> ({ ..s, problem: None, draft: "" }, do add_todo!(s.draft) else AddRejected)
+  Tick(id)        -> (s, do toggle!(id))
+  Filter(f)       -> ({ ..s, show: f }, none)
+  Clear           -> (s, do clear_done!())
+  DraftChanged(t) -> ({ ..s, draft: t }, none)
+  AddRejected(e)  -> ({ ..s, problem: e }, none)
+}
+```
+
+- **Each action becomes a message variant,** with its parameters as the
+  payload. `bind:` adds a `…Changed` variant, and each `else` handler adds a
+  `…Rejected` one.
+- **Assignments become record updates.** That's local mutation that can't
+  escape the action, which is how Koka keeps functions with local `var`s pure.
+  Redux Toolkit does the same in JavaScript: you write `state.done = true` in a
+  reducer, and it produces an immutable update.
+- **Messages are addressed by their component's place in the tree,** e.g.
+  `App / ItemRow(key: 42) / Save`. Every component's state is kept as one tree,
+  so logging, replay and debugging see all of it.
+- **The surface syntax doesn't fix the runtime strategy.** The browser platform
+  could run this on a small Elm-Architecture runtime, or compile it to
+  fine-grained signals, as Svelte compiles its components.
+
+### 7.6 How the simulator drives a client
+
+The simulator doesn't generate arbitrary messages. It interacts with what's
+rendered: it picks among the actions attached to elements currently on screen,
+and types random text (including empty text) into bound inputs. A message no
+person could produce, such as `Save` for a row that isn't shown, never occurs.
 
 ## 8. Platforms and deployment
 
@@ -285,7 +429,7 @@ simulate flaky_wifi {
   platform: "weft/sim"                           # ...on simulated platforms
   clients: 2
   network: drop 10%, latency 5ms..2s, offline 30%
-  steps:   500 random msgs per client
+  steps:   500 random actions per client
 }
 ```
 
@@ -370,7 +514,7 @@ How each part of the example lowers under `deploy prod`:
 | Pure functions | Inlined into every target that needs them |
 | Commands | A Rust transaction against Postgres on the server, plus an optimistic TypeScript copy against the browser's local data; the server confirms it, or the client rolls back and replays its pending changes |
 | Views | A SQL query plus a change feed, or local TypeScript evaluation if `todos` is replicated |
-| `App` | TypeScript on a small Elm-Architecture runtime; Elm as a second backend |
+| `App` and its components | TypeScript: each component compiled to the Elm Architecture (section 7.5) on a small runtime, or to fine-grained signals |
 | `table todos` | Schema, migrations, and indexes inferred from use (`sort_by(.created)`) |
 | `!` effects | Calls into each platform; the sim platform runs them deterministically from a seed |
 
@@ -379,9 +523,10 @@ How each part of the example lowers under `deploy prod`:
 - **`check`** declarations are domain invariants, evaluated by the simulator.
 - **Convergence is always checked.** Once sync settles, every client's views
   must equal the server's. Nobody writes this check; the compiler derives it.
-- **`simulate`** blocks drive many simulated clients with random messages,
-  network faults and offline periods. Because `update` and `view` are pure and
-  every effect is declared, a failing seed replays exactly.
+- **`simulate`** blocks drive many simulated clients through the actions on
+  their screens (section 7.6), with network faults and offline periods.
+  Because actions and views compile to pure functions and every effect is
+  declared, a failing seed replays exactly.
 
 ## 13. Front ends
 
@@ -422,6 +567,15 @@ query engine such as salsa.
 7. **Users and authorization.** Not yet designed. Per-user todos
    (`owner = current_user!()`, placed per user) are the first test of whether
    placement stays a one-line concern.
+8. **Rejections for a component that's gone.** When a rejection arrives after
+   its component was removed, drop the `else` handler (as proposed), or pass
+   the rejection to the nearest ancestor that declares a handler?
+   *Recommendation:* drop it, with an optional client-wide handler for
+   rejections nobody caught.
+9. **Assignment syntax in actions.** Bare names (`draft = ""`, as proposed,
+   where a state's name means assignment), or explicit
+   (`state.draft = ""`)? *Recommendation:* bare names, with a compile error
+   when a local would reuse a state's name.
 
 ## 15. Prior art
 
@@ -431,7 +585,8 @@ Clones live in `refs/` (see [refs/README.md](../refs/README.md)).
 |---|---|
 | Roc (`refs/roc`) | Platforms, `!`/`=>` purity inference, structural tag unions |
 | Koka (`refs/koka`) | Effect rows, handlers, operation kinds, Perceus |
-| Elm | The client architecture |
+| Elm | The model clients compile to: pure transitions, messages as data |
+| Svelte, Redux Toolkit, Hyperapp | The client syntax: local state, `bind:`, named actions with messages generated from them, mutation written in place and compiled to immutable updates |
 | JAX (`refs/jax`) | Small IR, primitives with per-transformation rules, sharding annotations |
 | Hydro (`refs/hydro`) | Typed locations, lattices, a compiler stack for distributed programs |
 | Wing (`refs/wing`) | Abstract resources with one implementation per target, including a simulator |

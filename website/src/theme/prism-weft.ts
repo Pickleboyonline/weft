@@ -30,7 +30,7 @@ export default function registerWeft(Prism: typeof PrismNamespace): void {
       },
     },
     declaration: {
-      pattern: /\b(?:module|import|record|table|command|view|client|check|effect|handler|extern|fun|ctl|final|deploy|simulate|machine|place|consistency|durability|budget|pin|sync|needs|sim)\b/,
+      pattern: /\b(?:module|import|record|table|command|view|client|component|state|action|check|effect|handler|extern|fun|ctl|final|deploy|simulate|machine|place|consistency|durability|budget|pin|sync|needs|sim)\b/,
       alias: 'keyword',
     },
     control: /\b(?:if|else|match|for|in|key|do|reject)\b/,

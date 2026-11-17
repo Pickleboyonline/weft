@@ -32,7 +32,7 @@ simulate two_devices {
   platform: "weft/sim"
   clients:  2
   network:  latency 5ms..2s
-  steps:    300 random msgs per client
+  steps:    300 random actions per client
 }
 
 simulate flaky_wifi {
@@ -40,5 +40,5 @@ simulate flaky_wifi {
   platform: "weft/sim"
   clients:  3
   network:  drop 10%, latency 5ms..2s, offline 30%
-  steps:    500 random msgs per client
+  steps:    500 random actions per client
 }

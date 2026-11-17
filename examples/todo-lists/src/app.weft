@@ -1,154 +1,163 @@
 module todo_lists
 
-# ── Client: the Elm Architecture ──────────────────────────────
+# ── Client: components with local state, changed by actions ───
 #
-# A sidebar of lists and a panel for the selected list. `view` reads
-# all_lists(), find_list() and items_in() as if the data were local;
-# the compiler adds the syncing (language.md, section 7).
+# A sidebar of lists and a panel for the selected list. Each piece keeps the
+# state only it needs: the sidebar its new-list form, each row its own inline
+# editing. Views read all_lists(), find_list() and items_in() as if the data
+# were local; the compiler adds the syncing (language.md, section 7).
 
 client App {
-  Problem : [None, EmptyName, EmptyTitle, NoSuchList]
-  Editing : [Nothing, ListName(Id, Text), ItemTitle(Id, Text)]
+  state selected: [None, Some(Id)] = None
 
-  Model : {
-    selected:   [None, Some(Id)],
-    list_draft: Text,
-    item_draft: Text,
-    show:       Filter,
-    editing:    Editing,
-    problem:    Problem,
+  view = main {
+    Sidebar(selected: selected, on_select: select)
+    match selected {
+      None     -> p { "Pick a list, or make one" }
+      Some(id) -> match find_list(id) {
+        Missing     -> p { "This list was deleted on another device" }
+        Found(list) -> ListPanel(list: list, on_deleted: deselect)
+      }
+    }
   }
 
-  init = {
-    selected:   None,
-    list_draft: "",
-    item_draft: "",
-    show:       All,
-    editing:    Nothing,
-    problem:    None,
-  }
+  action select(id: Id) { selected = Some(id) }
+  action deselect       { selected = None }
+}
 
-  Msg : [
-    Select(Id), TypedList(Text), CreateList, DeleteList(Id),
-    TypedItem(Text), AddItem, SetDone(Id, Bool), DeleteItem(Id),
-    ClearDone, Show(Filter),
-    StartEdit(Editing), TypedEdit(Text), SaveEdit, CancelEdit,
-    Rejected(_),
-  ]
+component Sidebar(selected: [None, Some(Id)], on_select: Id -> action) {
+  state name    = ""
+  state problem = None
 
-  update = |m, msg| match msg {
-    Select(id)     -> ({ ..m, selected: Some(id), editing: Nothing, problem: None }, none)
-    TypedList(t)   -> ({ ..m, list_draft: t, problem: None }, none)
-    CreateList     -> ({ ..m, list_draft: "" }, do create_list!(m.list_draft) else Rejected)
-    DeleteList(id) -> ({ ..m, selected: None }, do delete_list!(id))
-
-    TypedItem(t)   -> ({ ..m, item_draft: t, problem: None }, none)
-    AddItem        -> match m.selected {
-                        None     -> (m, none)
-                        Some(id) -> ({ ..m, item_draft: "" }, do add_item!(id, m.item_draft) else Rejected)
-                      }
-    SetDone(id, d) -> (m, do set_done!(id, d))
-    DeleteItem(id) -> (m, do delete_item!(id))
-    ClearDone      -> match m.selected {
-                        None     -> (m, none)
-                        Some(id) -> (m, do clear_done!(id))
-                      }
-    Show(f)        -> ({ ..m, show: f }, none)
-
-    StartEdit(e)   -> ({ ..m, editing: e }, none)
-    TypedEdit(t)   -> ({ ..m, editing: retext(m.editing, t) }, none)
-    SaveEdit       -> save(m)
-    CancelEdit     -> ({ ..m, editing: Nothing }, none)
-
-    Rejected(err)  -> ({ ..m, problem: err }, none)
-  }
-
-  retext = |e, t| match e {
-    Nothing          -> Nothing
-    ListName(id, _)  -> ListName(id, t)
-    ItemTitle(id, _) -> ItemTitle(id, t)
-  }
-
-  save = |m| match m.editing {
-    Nothing             -> (m, none)
-    ListName(id, name)  -> ({ ..m, editing: Nothing }, do rename_list!(id, name) else Rejected)
-    ItemTitle(id, text) -> ({ ..m, editing: Nothing }, do rename_item!(id, text) else Rejected)
-  }
-
-  # ── Markup ──
-
-  view = |m| main {
-    nav {
-      ul {
-        for row in all_lists() key row.list.id {
-          li(on_click: Select(row.list.id), current: m.selected == Some(row.list.id)) {
-            span { row.list.name }
-            span(class: "count") { "${row.open}" }
-          }
+  view = nav {
+    ul {
+      for row in all_lists() key row.list.id {
+        li(on_click: on_select(row.list.id), current: selected == Some(row.list.id)) {
+          span { row.list.name }
+          span(class: "count") { "${row.open}" }
         }
       }
-      form(on_submit: CreateList) {
-        input(value: m.list_draft, placeholder: "New list", on_input: TypedList)
+    }
+    form(on_submit: create) {
+      input(bind: name, placeholder: "New list")
+    }
+    match problem {
+      None      -> nothing
+      EmptyName -> p(class: "error") { "A list needs a name" }
+    }
+  }
+
+  action create {
+    problem = None
+    do create_list!(name) else |err| problem = err
+    name = ""
+  }
+}
+
+component ListPanel(list: TodoList, on_deleted: action) {
+  state show     = All
+  state draft    = ""
+  state renaming = False
+  state new_name = ""
+  state problem  = None
+
+  view = section {
+    header {
+      if renaming {
+        form(on_submit: rename) {
+          input(bind: new_name)
+          button(on_click: stop_renaming) { "Cancel" }
+        }
+      } else {
+        h2(on_click: start_renaming) { list.name }
       }
     }
 
-    match m.problem {
+    form(on_submit: add) {
+      input(bind: draft, placeholder: "Add an item")
+    }
+    match problem {
       None       -> nothing
       EmptyName  -> p(class: "error") { "A list needs a name" }
       EmptyTitle -> p(class: "error") { "An item needs a title" }
       NoSuchList -> p(class: "error") { "That list was deleted" }
     }
 
-    match m.selected {
-      None     -> p { "Pick a list, or make one" }
-      Some(id) -> match find_list(id) {
-        Missing     -> p { "This list was deleted on another device" }
-        Found(list) -> list_panel(m, list)
-      }
-    }
-  }
-
-  list_panel = |m, list| section {
-    header {
-      match m.editing {
-        ListName(id, text) -> if id == list.id edit_box(text) else list_name(list)
-        _                  -> list_name(list)
-      }
-    }
-
-    form(on_submit: AddItem) {
-      input(value: m.item_draft, placeholder: "Add an item", on_input: TypedItem)
-    }
-
     ul {
-      for i in items_in(list.id, m.show) key i.id {
-        li {
-          # The click carries the value the person wants, not "flip it".
-          checkbox(checked: i.done, on_change: SetDone(i.id, not i.done))
-          match m.editing {
-            ItemTitle(id, text) -> if id == i.id edit_box(text) else item_title(i)
-            _                   -> item_title(i)
-          }
-          button(on_click: DeleteItem(i.id)) { "Delete" }
-        }
-      }
+      for i in items_in(list.id, show) key i.id { ItemRow(item: i) }
     }
 
     footer {
       for f in [All, Active, Done] {
-        button(on_click: Show(f), pressed: m.show == f) { f.to_str() }
+        button(on_click: filter(f), pressed: show == f) { f.to_str() }
       }
-      button(on_click: ClearDone) { "Clear done" }
-      button(on_click: DeleteList(list.id)) { "Delete list" }
+      button(on_click: clear) { "Clear done" }
+      button(on_click: delete) { "Delete list" }
     }
   }
 
-  list_name = |list| h2(on_click: StartEdit(ListName(list.id, list.name))) { list.name }
-
-  item_title = |i| span(class: if i.done "done" else "", on_click: StartEdit(ItemTitle(i.id, i.title))) { i.title }
-
-  edit_box = |text| form(on_submit: SaveEdit) {
-    input(value: text, on_input: TypedEdit)
-    button(on_click: CancelEdit) { "Cancel" }
+  action start_renaming {
+    renaming = True
+    new_name = list.name
   }
+
+  action stop_renaming { renaming = False }
+
+  action rename {
+    renaming = False
+    do rename_list!(list.id, new_name) else |err| problem = err
+  }
+
+  action add {
+    problem = None
+    do add_item!(list.id, draft) else |err| problem = err
+    draft = ""
+  }
+
+  action filter(f: Filter) { show = f }
+  action clear             { do clear_done!(list.id) }
+
+  action delete {
+    do delete_list!(list.id)
+    do on_deleted()
+  }
+}
+
+component ItemRow(item: Item) {
+  state editing = False
+  state draft   = ""
+  state problem = None
+
+  view = li {
+    # The click carries the value the person wants, not "flip it".
+    checkbox(checked: item.done, on_change: done(not item.done))
+    if editing {
+      form(on_submit: save) {
+        input(bind: draft)
+        button(on_click: cancel) { "Cancel" }
+      }
+    } else {
+      span(class: if item.done "done" else "", on_click: edit) { item.title }
+    }
+    match problem {
+      None       -> nothing
+      EmptyTitle -> p(class: "error") { "An item needs a title" }
+    }
+    button(on_click: remove) { "Delete" }
+  }
+
+  action edit {
+    editing = True
+    draft = item.title
+  }
+
+  action cancel { editing = False }
+
+  action save {
+    editing = False
+    do rename_item!(item.id, draft) else |err| problem = err
+  }
+
+  action done(d: Bool) { do set_done!(item.id, d) }
+  action remove        { do delete_item!(item.id) }
 }

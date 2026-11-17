@@ -97,47 +97,87 @@ keeps     : Filter, Item -> Bool
 - The row after `!` says exactly what it touches. `random` and `time` are
   there because a new `Item` gets a fresh id and a timestamp.
 
-## The client: the Elm Architecture
+## The client: components, state and actions
 
 ```weft
-client App {
-  Model : { selected: [None, Some(Id)], item_draft: Text, problem: [None, EmptyTitle, NoSuchList] }
-  Msg   : [Select(Id), TypedItem(Text), AddItem, SetDone(Id, Bool), Rejected(_)]
+component ItemRow(item: Item) {
+  state editing = False
+  state draft   = ""
+  state problem = None
 
-  update = |m, msg| match msg {
-    TypedItem(t)   -> ({ ..m, item_draft: t, problem: None }, none)
-    AddItem        -> match m.selected {
-                        None     -> (m, none)
-                        Some(id) -> ({ ..m, item_draft: "" }, do add_item!(id, m.item_draft) else Rejected)
-                      }
-    SetDone(id, d) -> (m, do set_done!(id, d))
-    Rejected(err)  -> ({ ..m, problem: err }, none)
-    Select(id)     -> ({ ..m, selected: Some(id) }, none)
-  }
-
-  view = |m| main {
-    match m.selected {
-      None     -> p { "Pick a list" }
-      Some(id) -> ul {
-        for i in items_in(id, All) key i.id {
-          li {
-            checkbox(checked: i.done, on_change: SetDone(i.id, not i.done))
-            span { i.title }
-          }
-        }
+  view = li {
+    checkbox(checked: item.done, on_change: done(not item.done))
+    if editing {
+      form(on_submit: save) {
+        input(bind: draft)
+        button(on_click: cancel) { "Cancel" }
       }
+    } else {
+      span(on_click: edit) { item.title }
+    }
+    match problem {
+      None       -> nothing
+      EmptyTitle -> p(class: "error") { "An item needs a title" }
     }
   }
+
+  action edit {
+    editing = True
+    draft = item.title
+  }
+
+  action cancel { editing = False }
+
+  action save {
+    editing = False
+    do rename_item!(item.id, draft) else |err| problem = err
+  }
+
+  action done(d: Bool) { do set_done!(item.id, d) }
 }
 ```
 
-- `update` is pure. `do add_item!(…)` doesn't run the command; it returns it
-  for the runtime to run.
-- `else Rejected` is required because `add_item!` can reject. Leave it out and
-  the program doesn't compile.
-- `{ ..m, item_draft: t }` is a copy of `m` with one field changed.
-- `view` reads `items_in(…)` as if it were local. The compiler adds the
-  syncing.
+- `state` is local to this component: each row has its own `editing` and
+  `draft`. Types are inferred. `problem` is `[None, EmptyTitle]` because that's
+  what `rename_item!` can reject with.
+- `view` is markup and can't change anything. Event attributes name an
+  action: `on_click: edit`, or `on_change: done(not item.done)` with an
+  argument.
+- An `action` is the only place state changes. `draft = item.title` sets
+  state; `do` sends a command once the action finishes.
+- `else |err| …` is required because `rename_item!` can reject. Leave it out
+  and the program doesn't compile.
+- `input(bind: draft)` keeps the input and the state in step, with no action
+  per keystroke.
+
+The root of the UI is a `client`, which `deploy.weft` places on the browser.
+It uses components like markup elements, and passes its own actions down when
+a child needs to tell it something:
+
+```weft
+client App {
+  state selected: [None, Some(Id)] = None
+
+  view = main {
+    Sidebar(selected: selected, on_select: select)
+    match selected {
+      None     -> p { "Pick a list, or make one" }
+      Some(id) -> match find_list(id) {
+        Missing     -> p { "This list was deleted on another device" }
+        Found(list) -> ListPanel(list: list, on_deleted: deselect)
+      }
+    }
+  }
+
+  action select(id: Id) { selected = Some(id) }
+  action deselect       { selected = None }
+}
+```
+
+Views read server data (`find_list(id)`, `items_in(…)`) as if it were local;
+the compiler adds the syncing. Underneath, each component compiles to the Elm
+Architecture: every action becomes a message, and the assignments become a
+pure state update.
 
 ## Checks: the only tests you write
 
@@ -171,7 +211,7 @@ simulate flaky_wifi {
   platform: "weft/sim"
   clients:  3
   network:  drop 10%, latency 5ms..2s, offline 30%
-  steps:    500 random msgs per client
+  steps:    500 random actions per client
 }
 ```
 

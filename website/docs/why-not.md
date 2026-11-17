@@ -45,13 +45,33 @@ call and ships explicit placement. Automatic *suggestions* may come later.
 
 ## Why can't the client call the server directly?
 
-**By design.** A client's `update` is a pure function. It returns commands as
-values (`do add_todo!(m.draft)`), and the runtime runs them, as in Elm.
+**By design.** Client code changes state only inside actions, and an action
+sends a command with `do add_todo!(draft)`: the command goes out after the
+action finishes, not in the middle of it. Underneath, actions compile to pure
+functions that return commands as values, as in Elm.
 
-The cost is one more concept to learn. In return, every effect is visible to
-the compiler and the simulator, optimistic updates come for free (the command
-can run against the client's local copy first), and `update` can be tested
+The cost is one rule to learn. In return, every effect is visible to the
+compiler and the simulator, optimistic updates come for free (the command can
+run against the client's local copy first), and an action can be tested
 without a network.
+
+## Why not write clients the way Elm does?
+
+**By design: weft uses Elm's model with lighter syntax.** In Elm, every
+interaction needs a message variant plus a branch in one `update` function,
+and all state lives in one global model. That's correct but heavy: inline
+editing of one item touches six places.
+
+weft clients are components with local `state`, changed by named `action`s,
+with `bind:` for inputs. The compiler generates the messages and the `update`
+function from the actions, so the result is still the Elm Architecture: pure
+transitions, messages as data, replayable runs. Redux Toolkit does the same in
+JavaScript.
+
+The tradeoff is the one Elm warns about: state is spread across components
+instead of sitting in one model. The compiler still keeps every component's
+state in one tree, so logging, replay and debugging see all of it; only the
+source is spread out.
 
 ## Why can't a view write?
 

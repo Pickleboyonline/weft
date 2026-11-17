@@ -39,15 +39,18 @@ piece at a time.
 **Today:** routes, request handlers, fetch calls, serialization, and client
 types kept in step with server types by hand.
 
-**In weft:** the client calls a command and reads a view as if both were
+**In weft:** the client sends a command and reads a view as if both were
 local:
 
 ```weft
-Submit -> ({ ..m, draft: "" }, do add_todo!(m.draft) else Rejected)
+action add {
+  do add_todo!(draft) else |err| problem = err
+  draft = ""
+}
 ```
 
 ```weft
-ul { for t in todo_list(m.show) key t.id { item(t) } }
+ul { for t in todo_list(show) key t.id { TodoRow(todo: t) } }
 ```
 
 The compiler is meant to generate the endpoint, the client code that calls

@@ -161,10 +161,26 @@
           }
         },
         {
-          "match": "\\b(client)\\s+([A-Z][A-Za-z0-9_]*)",
+          "match": "\\b(client|component)\\s+([A-Z][A-Za-z0-9_]*)",
           "captures": {
-            "1": { "name": "storage.type.client.weft" },
+            "1": { "name": "storage.type.$1.weft" },
             "2": { "name": "entity.name.type.class.weft" }
+          }
+        },
+        {
+          "comment": "action save { ... }   action done(d: Bool) { ... }",
+          "match": "\\b(action)\\s+([a-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.action.weft" },
+            "2": { "name": "entity.name.function.weft" }
+          }
+        },
+        {
+          "comment": "state draft = \"\"",
+          "match": "\\b(state)\\s+([a-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.state.weft" },
+            "2": { "name": "variable.other.definition.weft" }
           }
         },
         {
@@ -219,6 +235,14 @@
             "1": { "name": "entity.name.function.weft" },
             "2": { "name": "keyword.other.effect.weft" },
             "3": { "name": "punctuation.separator.type.weft" }
+          }
+        },
+        {
+          "comment": "A component's markup: view = li { ... }",
+          "match": "^\\s*(view)\\s*(=)(?![=>])",
+          "captures": {
+            "1": { "name": "storage.type.view.weft" },
+            "2": { "name": "keyword.operator.assignment.weft" }
           }
         },
         {
@@ -364,6 +388,11 @@
         {
           "name": "support.type.builtin.weft",
           "match": "\\b(Text|Str|Id|Time|Date|Bool|U8|U16|U32|U64|I8|I16|I32|I64|F32|F64|Dec|List|Set|Dict|Html|Cmd|Result)\\b"
+        },
+        {
+          "comment": "`action` as a type, for actions passed to a component: on_select: Id -> action",
+          "name": "support.type.builtin.weft",
+          "match": "\\baction\\b"
         },
         {
           "comment": "User types and tags: Todo, Filter, All, Some(id), EmptyTitle",

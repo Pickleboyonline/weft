@@ -22,7 +22,7 @@ README is illustrative.
 |---|---|
 | [src/data.weft](src/data.weft) | Two records and two tables: `lists` and `items` |
 | [src/logic.weft](src/logic.weft) | Commands (every write) and views (every read the client uses) |
-| [src/app.weft](src/app.weft) | The browser client: model, messages, `update`, markup |
+| [src/app.weft](src/app.weft) | The browser client: components with local state, changed by actions |
 | [src/checks.weft](src/checks.weft) | Invariants. These are the project's only tests. |
 | [deploy.weft](deploy.weft) | Where it runs: `local`, `prod`, and two simulations |
 
@@ -34,7 +34,7 @@ any of those. The compiler is supposed to produce all of them.
 
 ### 1. `set_done!` instead of `toggle!`
 
-The checkbox sends `SetDone(id, not i.done)`: the value the person wants, not
+The checkbox runs `done(not item.done)`: the value the person wants, not
 "flip it". If your phone and laptop both tick the same box, the item ends up
 done, which is what you both meant. With a `toggle!` it would flip twice and end
 up not done. That's correct (it's what one machine would do with two toggles)
@@ -143,10 +143,13 @@ decision.
    in `delete_list!` and the `no_orphans` check are written by hand. A
    reference type (`list: Ref(TodoList)` with "delete with parent") would let
    the compiler know the relationship directly.
-5. **Helpers inside `client`.** `retext`, `save`, `list_panel`, `list_name`,
-   `item_title` and `edit_box` are pure functions defined inside the client
-   block. language.md only shows top-level helpers.
+5. **One `problem` per component.** `ListPanel` shows rename errors and
+   add-item errors through a single `problem` state, so a failed rename can
+   replace the message from a failed add. Separate states work but repeat
+   themselves. A per-form error helper, or rejections shown next to the form
+   that caused them, would fit better. Relatedly, a rejection that arrives after
+   its row was deleted is dropped (language.md, open decision 8).
 6. **Users and authorization.** There are no users: everyone sees every list.
    This is open decision 7 in language.md, and per-user lists are the natural
    next version of this example.
-7. **Routing.** The selected list lives in the model, not the URL.
+7. **Routing.** The selected list lives in `App`'s state, not the URL.

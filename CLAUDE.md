@@ -12,7 +12,9 @@ The current language proposal is [docs/language.md](docs/language.md). Its open
 decisions (section 15) belong to the project owner: don't treat its
 recommendations as settled. Concept notes on the physical layer:
 [docs/jax-analogy.md](docs/jax-analogy.md) and
-[docs/infrastructure-primitives.md](docs/infrastructure-primitives.md).
+[docs/infrastructure-primitives.md](docs/infrastructure-primitives.md). How
+`check`s could be verified (simulation, model checking, proof):
+[docs/testing-and-proof.md](docs/testing-and-proof.md).
 
 `examples/` holds weft projects written against that proposal, starting with
 [examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:

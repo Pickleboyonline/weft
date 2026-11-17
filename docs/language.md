@@ -661,6 +661,12 @@ How each part of the example lowers under `deploy prod`:
   Because actions and views compile to pure functions and every effect is
   declared, a failing seed replays exactly.
 
+Simulation finds counterexamples; it can't prove their absence.
+[testing-and-proof.md](testing-and-proof.md) compares it with property-based
+testing, model checking and proof (including Bend 2's laws). It proposes
+letting the same `check` be simulated, exhausted on a small configuration, or
+proven per command (open decision 13).
+
 ## 14. Front ends
 
 The IR is the product, and the language is one front end for it. A Python
@@ -719,6 +725,14 @@ query engine such as salsa.
 12. **Routing beyond the basics:** nested layouts, query-string parameters,
     redirects, a not-found page per section. *Recommendation:* one layout
     (`App`) and path parameters only, until an example needs more.
+13. **How strongly a `check` is verified.** Simulation only, or also
+    exhaustive checking of small configurations, and proofs that each command
+    preserves a check on one machine (with a person writing the check and an
+    AI writing the proof, as in Bend 2)? See
+    [testing-and-proof.md](testing-and-proof.md). *Recommendation:* simulation
+    in v1, then bounded exhaustive checking, which reuses the simulator. Proofs
+    come later, and never replace simulation: the compiler, platforms and
+    externs are where verified systems have failed.
 
 ## 16. Prior art
 

@@ -8,7 +8,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Concepts',
       collapsible: false,
-      items: ['jax-analogy', 'infrastructure-primitives'],
+      items: ['jax-analogy', 'infrastructure-primitives', 'testing-and-proof'],
     },
     {
       type: 'category',

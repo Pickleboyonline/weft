@@ -74,12 +74,31 @@ has a precise meaning.
 
 ## Testing and verification
 
+How these compare, with figures: [testing-and-proof.md](testing-and-proof.md).
+
+**Testing and simulation**
+
+- Claessen, Hughes. [QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf). ICFP 2000. *Properties checked on random inputs: the start of property-based testing.*
 - Wilson. [Testing Distributed Systems w/ Deterministic Simulation](https://thestrangeloop.com/2014/testing-distributed-systems-w-slash-deterministic-simulation.html). Strange Loop 2014 (talk). *How FoundationDB was tested. The origin of deterministic simulation testing.* Code: `refs/tigerbeetle` for a modern version.
 - Kingsbury, Alvaro. [Elle: Inferring Isolation Anomalies from Experimental Observations](https://doi.org/10.14778/3430915.3430918). VLDB 2021. *Checking recorded histories by finding dependency cycles: the scalable way to run the oracle.* Code: `refs/maelstrom` uses Jepsen's checkers.
 - Claessen et al. [Finding Race Conditions in Erlang with QuickCheck and PULSE](https://doi.org/10.1145/1596550.1596574). ICFP 2009. *Random parallel commands checked against a sequential model.*
-- Bornholt et al. *ShardStore at Amazon S3*: see Start here.
+- Zhou et al. [FoundationDB: A Distributed Unbundled Transactional Key Value Store](https://www.foundationdb.org/files/fdb-paper.pdf). SIGMOD 2021. *Simulation in production use: what it caught, and what it can't (performance, code outside the simulator).*
+
+**Model checking**
+
+- Jackson. [Alloy and the small scope hypothesis](https://people.csail.mit.edu/dnj/talks/zb2003/zb2003.noanim.pdf). ZB 2003 (talk slides). *Most bugs have small counterexamples, so bounded checking finds a lot.*
+- Newcombe et al. [How Amazon Web Services Uses Formal Methods](https://lamport.azurewebsites.net/tla/formal-methods-amazon.pdf). CACM 2015 (authors' preprint). *TLA+ on 10 production systems; bugs needing 35-step traces.*
+- Bornholt et al. *ShardStore at Amazon S3*: see Start here. *A reference model, property-based testing and model checking instead of full proof.*
+- [P](https://github.com/p-org/P) and [Stateright](https://github.com/stateright/stateright): model checking inside a programming language (state machines; Rust actors). Both are listed in `refs/repos.txt` (Tier 2, not cloned).
+
+**Proof**
+
 - Wilcox et al. [Verdi: A Framework for Implementing and Formally Verifying Distributed Systems](https://doi.org/10.1145/2737924.2737958). PLDI 2015. *Write for a perfect network, apply verified transformers for faults: the formal version of weft's idea.* Code: `refs/verdi`.
-- Hawblitzel et al. [IronFleet: Proving Practical Distributed Systems Correct](https://doi.org/10.1145/2815400.2815428). SOSP 2015.
+- Woos et al. [Planning for Change in a Formal Verification of the Raft Consensus Protocol](https://homes.cs.washington.edu/~mernst/pubs/raft-proof-cpp2016.pdf). CPP 2016. *The full Raft safety proof: about 50,000 lines for about 530 lines of code.*
+- Hawblitzel et al. [IronFleet: Proving Practical Distributed Systems Correct](https://doi.org/10.1145/2815400.2815428). SOSP 2015. *Safety and liveness, in about 3.7 person-years.*
+- Klein et al. [seL4: Formal Verification of an OS Kernel](https://www.sigops.org/s/conferences/sosp/2009/papers/klein-sosp09.pdf). SOSP 2009. *The cost benchmark: about 20 person-years.*
+- Fonseca et al. [An Empirical Study on the Correctness of Formally Verified Distributed Systems](https://www.cs.purdue.edu/homes/pfonseca/papers/eurosys2017-dsbugs.pdf). EuroSys 2017. *16 bugs in verified systems, none in the proven protocols: all at the edges.*
+- [Bend 2](https://github.com/bendlang/bend) (2026). *Laws written by a person, proofs written by an AI, checked by a dependently typed checker.*
 
 ## The language: effects and runtime
 

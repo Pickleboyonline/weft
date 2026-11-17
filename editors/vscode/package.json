@@ -1,0 +1,60 @@
+{
+  "name": "weft-language",
+  "displayName": "Weft",
+  "description": "Syntax highlighting for the weft language (draft)",
+  "version": "0.0.1",
+  "publisher": "weft",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "weft",
+        "aliases": [
+          "Weft",
+          "weft"
+        ],
+        "extensions": [
+          ".weft"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/weft-light.svg",
+          "dark": "./icons/weft-dark.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "weft",
+        "scopeName": "source.weft",
+        "path": "./syntaxes/weft.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.weft.codeblock",
+        "path": "./syntaxes/weft.markdown.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.weft": "weft"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node test/grammar.test.mjs",
+    "preview": "node test/preview.mjs",
+    "package": "vsce package --allow-missing-repository --skip-license --no-rewrite-relative-links --out weft-language.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.1.1",
+    "shiki": "^4.6.0"
+  }
+}

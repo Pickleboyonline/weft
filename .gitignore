@@ -4,3 +4,8 @@
 !/refs/README.md
 !/refs/repos.txt
 !/refs/sync.sh
+
+# VS Code extension: dependencies and build output
+/editors/vscode/node_modules/
+/editors/vscode/out/
+/editors/vscode/*.vsix

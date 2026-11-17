@@ -18,6 +18,12 @@ recommendations as settled. Concept notes on the physical layer:
 [examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:
 they're design artifacts, and each README lists the gaps it exposed.
 
+[editors/vscode](editors/vscode/README.md) is a VS Code extension that
+highlights `.weft` files and ```` ```weft ```` blocks in Markdown. When the
+language changes, update its grammar and run `make vscode-test`: it fails if any
+text in the examples or doc code blocks goes unhighlighted. `make` lists all
+tasks.
+
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,

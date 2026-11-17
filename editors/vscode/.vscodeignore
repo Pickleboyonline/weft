@@ -1,0 +1,6 @@
+test/**
+out/**
+node_modules/**
+.vscode/**
+*.vsix
+package-lock.json

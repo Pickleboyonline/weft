@@ -33,6 +33,9 @@ verdi        https://github.com/uwplse/verdi.git                 -
 # elle         https://github.com/jepsen-io/elle.git               -   # history checker behind Jepsen
 # katara       https://github.com/hydro-project/katara.git         -   # CRDT synthesis from sequential types
 
+# ---- Owning the whole stack: language, runtime and tooling together
+darklang     https://github.com/darklang/dark.git                -
+
 # ---- Tier 2: patterns the compiler should generate
 # sync and offline (CRUD)
 # electric     https://github.com/neondatabase/electric.git        -

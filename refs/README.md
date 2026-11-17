@@ -56,6 +56,12 @@ compiling away network faults. Papers for each are in
 | **electric** | Electric Clojure v3: client and server code interleave in one function, and the compiler splits it and streams between them. Commercial license (free for non-commercial use): read, don't copy. | `Readme.md`, `docs/electric-protocol.md`, `src/hyperfiddle/electric3.cljc` |
 | **verdi** | Coq framework where you verify a system on a perfect network, then *verified system transformers* make it tolerate faults. The closest formal analog to "write it as if on one machine". | `README.md`, `theories/Core/Net.v` (network semantics), `theories/Systems/SeqNum.v` (a transformer that handles duplicates), `PrimaryBackup.v`, `LockServ.v` |
 
+## Owning the whole stack
+
+| Repo | Why it matters | Read first |
+|---|---|---|
+| **darklang** | The new version of Darklang ("dark-next", not yet production-ready): a functional language for backends and CLIs, interpreted by an F# runtime. Code is stored as immutable, content-addressed functions with version control built in. Edits re-bind names, so running servers follow them live. Effects are inferred and gate permissions per code version. Recorded runs can be paused, resumed and forked. One runtime on one machine: no client and no distribution. See [docs/prior-art.md](../docs/prior-art.md). | `docs/effects-and-permissions.md` (inferred effects), `docs/live.md` (live updates as name re-binding), `docs/internals.md` (the code store and its version control), `docs/processes.md` (scheduler, traces, resume and fork), `docs/agent-traps.md` and `AGENTS.md` (writing a new language with AI agents) |
+
 Later tiers are commented out in `repos.txt`, grouped by the question they answer:
 - **Tier 2:** sync and offline, durable execution, placement, simulation libraries.
 - **Tier 3:** hand-written baselines to benchmark against. For CRUD, RealWorld

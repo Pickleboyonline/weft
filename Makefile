@@ -33,3 +33,17 @@ $(VSIX): $(EXT_SRC) $(EXT)/node_modules
 $(EXT)/node_modules: $(EXT)/package.json $(EXT)/package-lock.json
 	cd $(EXT) && npm install --no-audit --no-fund
 	@touch $@
+
+# ── Documentation site (website/) ─────────────────────────────
+
+.PHONY: site site-build
+
+site: website/node_modules ## Run the docs site at http://localhost:3000
+	cd website && npm start
+
+site-build: website/node_modules ## Build the docs site into website/build
+	cd website && npm run build
+
+website/node_modules: website/package.json website/package-lock.json
+	cd website && npm install --no-audit --no-fund
+	@touch $@

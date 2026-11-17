@@ -24,6 +24,13 @@ language changes, update its grammar and run `make vscode-test`: it fails if any
 text in the examples or doc code blocks goes unhighlighted. `make` lists all
 tasks.
 
+[website/](website/README.md) is the Docusaurus documentation site (`make site`
+runs it). Its user-facing pages are in `website/docs/`, structured per
+[docs/docs-plan.md](docs/docs-plan.md); the repo's `docs/` folder is served
+as-is under "Design notes". Every page says weft is a design: never describe a
+planned feature as if it exists. `website/src/theme/prism-weft.ts` is a smaller
+copy of the VS Code grammar for the site; keep the two in step.
+
 ## Reference code
 
 `refs/` holds read-only clones of related projects (Hydro, JAX, Triton, Wing,

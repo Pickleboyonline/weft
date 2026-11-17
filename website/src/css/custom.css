@@ -1,0 +1,51 @@
+/*
+ * weft's colors, from branding/README.md: amber threads over ink and slate,
+ * on paper. Light-mode amber is darkened so links meet WCAG AA on white.
+ */
+
+:root {
+  --weft-amber: #f2a541;
+  --weft-deep-amber: #c27612;
+  --weft-ink: #191c23;
+  --weft-slate: #a4abb9;
+  --weft-paper: #f5f2eb;
+
+  --ifm-color-primary: #9f5f0c;
+  --ifm-color-primary-dark: #8f560b;
+  --ifm-color-primary-darker: #874f0a;
+  --ifm-color-primary-darkest: #6f4208;
+  --ifm-color-primary-light: #af680d;
+  --ifm-color-primary-lighter: #b76d0e;
+  --ifm-color-primary-lightest: #cf7b10;
+
+  --ifm-background-color: #fdfcf9;
+  --ifm-navbar-background-color: var(--weft-paper);
+  --ifm-font-color-base: var(--weft-ink);
+  --ifm-code-font-size: 92%;
+  --ifm-font-family-monospace: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #f2a541;
+  --ifm-color-primary-dark: #f09a27;
+  --ifm-color-primary-darker: #ef951a;
+  --ifm-color-primary-darkest: #d27c0f;
+  --ifm-color-primary-light: #f4b05b;
+  --ifm-color-primary-lighter: #f5b668;
+  --ifm-color-primary-lightest: #f8c68e;
+
+  --ifm-background-color: var(--weft-ink);
+  --ifm-background-surface-color: #20242d;
+  --ifm-navbar-background-color: #20242d;
+  --ifm-font-color-base: #e6e3dc;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+.navbar__logo img {
+  height: 30px;
+}
+
+.footer--dark {
+  --ifm-footer-background-color: var(--weft-ink);
+}

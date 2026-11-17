@@ -54,7 +54,7 @@ export function weftFiles(dir = repoRoot) {
 // ```weft blocks from the Markdown docs, so the grammar is checked against the spec too.
 export function docBlocks() {
   const blocks = [];
-  const dirs = [join(repoRoot, "docs"), join(repoRoot, "examples")];
+  const dirs = [join(repoRoot, "docs"), join(repoRoot, "examples"), join(repoRoot, "website", "docs")];
   const walk = (d) => {
     for (const name of readdirSync(d)) {
       const p = join(d, name);

@@ -1,0 +1,74 @@
+.hero {
+  padding: 4.5rem 1rem 3rem;
+  text-align: center;
+  background: var(--weft-paper);
+  border-bottom: 1px solid rgba(25, 28, 35, 0.08);
+}
+
+[data-theme='dark'] .hero {
+  background: #20242d;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.heroInner {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+.mark {
+  width: 88px;
+  height: 88px;
+  margin-bottom: 1.25rem;
+}
+
+.title {
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.status {
+  font-size: 0.9rem;
+  opacity: 0.75;
+  margin-bottom: 1.75rem;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 3rem 1rem 4rem;
+}
+
+.ideas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3.5rem;
+}
+
+.idea h2 {
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.idea p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.sample h2 {
+  font-size: 1.4rem;
+}

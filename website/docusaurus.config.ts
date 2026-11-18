@@ -40,9 +40,12 @@ const config: Config = {
     v4: true,
   },
 
-  // Not deployed anywhere yet; run locally with `make site`.
-  url: 'http://localhost',
-  baseUrl: '/',
+  // Deployed to GitHub Pages by .github/workflows/site.yml on every push to
+  // main. Run locally with `make site`.
+  url: 'https://pickleboyonline.github.io',
+  baseUrl: '/weft/',
+  organizationName: 'Pickleboyonline',
+  projectName: 'weft',
 
   // The design notes come straight from the repo's docs/ folder, and some of
   // their links point at repo files outside the site (refs/, examples/).
@@ -109,6 +112,11 @@ const config: Config = {
           docsPluginId: 'design',
           position: 'left',
           label: 'Design notes',
+        },
+        {
+          href: 'https://github.com/Pickleboyonline/weft',
+          label: 'GitHub',
+          position: 'right',
         },
       ],
     },

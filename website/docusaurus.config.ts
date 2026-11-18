@@ -47,17 +47,17 @@ const config: Config = {
   organizationName: 'Pickleboyonline',
   projectName: 'weft',
 
-  // The design notes come straight from the repo's docs/ folder, and some of
-  // their links point at repo files outside the site (refs/, examples/).
-  // Those can't resolve here, so broken links warn rather than fail the build.
-  onBrokenLinks: 'warn',
+  // Broken links fail the build. The design notes come straight from the
+  // repo's docs/ folder, so a link from them to a repo file outside the site
+  // (refs/, examples/, editors/) must be a full GitHub URL.
+  onBrokenLinks: 'throw',
 
   markdown: {
     // .md files are plain CommonMark (the repo docs aren't written for MDX);
     // .mdx files get MDX.
     format: 'detect',
     hooks: {
-      onBrokenMarkdownLinks: 'warn',
+      onBrokenMarkdownLinks: 'throw',
     },
   },
 

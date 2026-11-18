@@ -22,6 +22,10 @@ make site-build    # static build into website/build
 Pages are plain Markdown (`.md`, CommonMark). Use `.mdx` only where a page
 needs React components.
 
-Links from the design notes to repo files outside the site (`refs/`,
-`examples/`) can't resolve here, so the build reports broken links as
-warnings, not errors. Check the warnings after adding a page.
+Broken links fail the build. A link from a design note to a repo file
+outside the site (`refs/`, `examples/`, `editors/`) can't resolve here, so
+write it as a full GitHub URL, e.g.
+`https://github.com/Pickleboyonline/weft/blob/main/refs/README.md`.
+
+Every push to `main` builds the site and publishes it to
+<https://pickleboyonline.github.io/weft/> (`.github/workflows/site.yml`).

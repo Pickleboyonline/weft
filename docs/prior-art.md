@@ -262,7 +262,7 @@ more important:
    means, and weft must say so. The honest promise is: *the distributed app
    behaves like some one-machine run, or the compiler says which invariant it
    can't keep, and why.* The delete race in
-   [examples/todo-lists](../examples/todo-lists/README.md) is a small instance.
+   [examples/todo-lists](https://github.com/Pickleboyonline/weft/blob/main/examples/todo-lists/README.md) is a small instance.
 2. **Scope multiplication:** a language, a compiler, client and server code,
    sync, storage, a simulator and several targets. Each of these broke at
    least one project above.

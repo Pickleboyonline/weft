@@ -4,7 +4,7 @@ Papers behind each part of the design in [language.md](language.md), grouped by
 the question they answer. Every citation and link was checked on 2026-11-14,
 or on 2026-11-18 for the sections on queries and database behavior.
 Where open-source code exists, it's cloned in `refs/` (see
-[refs/README.md](../refs/README.md)).
+[refs/README.md](https://github.com/Pickleboyonline/weft/blob/main/refs/README.md)).
 
 ## Start here
 

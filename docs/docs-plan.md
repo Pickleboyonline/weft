@@ -2,7 +2,7 @@
 
 How weft's documentation should be structured, and which existing projects each
 part is modeled on. Based on a survey of language docs done on 2026-11-17;
-URLs are at the end. The site itself lives in [website/](../website/).
+URLs are at the end. The site itself lives in [website/](https://github.com/Pickleboyonline/weft/tree/main/website).
 
 ## Order of work
 
@@ -38,7 +38,7 @@ purpose, the promise and the decisions, and every later page depends on them.
 **Code**
 - Every code sample is compiled and tested, so the docs can't drift from the
   language (Zig). Until a compiler exists, samples are at least checked by the
-  grammar tests in [editors/vscode](../editors/vscode/README.md).
+  grammar tests in [editors/vscode](https://github.com/Pickleboyonline/weft/blob/main/editors/vscode/README.md).
 - Code that's *supposed* to fail is marked as such: a rejected placement or an
   effect error is a teaching moment (Rust's Ferris icons).
 - Inferred effects appear on hover in code samples (Koka).

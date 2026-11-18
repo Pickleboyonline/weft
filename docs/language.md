@@ -470,7 +470,7 @@ query parameters, layouts and a not-found page.
 
 ## 9. Prior art
 
-Clones live in `refs/` (see [refs/README.md](../refs/README.md)).
+Clones live in `refs/` (see [refs/README.md](https://github.com/Pickleboyonline/weft/blob/main/refs/README.md)).
 
 | Project | What weft takes from it |
 |---|---|

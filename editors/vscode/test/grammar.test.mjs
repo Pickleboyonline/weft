@@ -1,8 +1,8 @@
-// Grammar tests. Run with: npm test
+// Grammar tests. Run with: make vscode-test
 //
 // 1. Scope checks: specific tokens in real weft snippets get the scope we expect.
 // 2. Coverage: every non-space character in every .weft file and every ```weft
-//    block in the docs is claimed by some rule (nothing falls through unscoped).
+//    block in the docs and the site is claimed by some rule.
 import { highlighter, rawTokens, weftFiles, docBlocks, readFileSync, relative, repoRoot } from "./shared.mjs";
 
 const hl = await highlighter();
@@ -13,13 +13,12 @@ function fail(msg) {
   console.log(`  FAIL ${msg}`);
 }
 
-// expect(code, [text, scope, nth?]...): the nth token whose text is `text`
-// must have a scope starting with `scope`. A leading "!" means it must NOT.
+// expect(title, code, [text, scope, nth?]...): the nth token whose text is
+// `text` must have a scope starting with `scope`. A leading "!" means it must NOT.
 function expect(title, code, checks, lang = "weft") {
   const toks = rawTokens(hl, code, lang);
   for (const [text, scope, nth = 0] of checks) {
-    const matches = toks.filter((t) => t.text.trim() === text);
-    const tok = matches[nth];
+    const tok = toks.filter((t) => t.text.trim() === text)[nth];
     if (!tok) {
       fail(`${title}: no token "${text}" (#${nth})`);
       continue;
@@ -35,268 +34,224 @@ function expect(title, code, checks, lang = "weft") {
 
 console.log("scope checks");
 
-expect("command header", "command create_list!(name: Text) {", [
-  ["command", "storage.type.command"],
-  ["create_list", "entity.name.function"],
-  ["!", "keyword.other.effect"],
-  ["name", "variable.other.property"],
-  ["Text", "support.type.builtin"],
+expect("record with key, defaults and a method",
+  `## One item on a list.
+record Item {
+  key id:  Id(Item) = new_id!()
+  title:   Text
+  done:    Bool = False
+
+  label = |i| if i.done { "done" } else { i.title }
+}`,
+  [
+    ["One item on a list.", "comment.line.documentation"],
+    ["record", "storage.type.record"],
+    ["Item", "entity.name.type", 0],
+    ["key", "storage.modifier.key"],
+    ["id", "variable.other.property"],
+    ["Id", "support.type.builtin"],
+    ["new_id", "entity.name.function"],
+    ["!", "keyword.other.effect"],
+    ["False", "constant.language.boolean"],
+    ["label", "entity.name.function"],
+    ["if", "keyword.control"],
+  ]);
+
+expect("tables are values", "items = Table(Item, delete_with: { list: lists })", [
+  ["items", "variable.other.definition"],
+  ["Table", "support.type.builtin"],
+  ["delete_with", "variable.other.property"],
 ]);
 
-expect("reject", "  if cleaned.is_empty() { reject EmptyName }", [
-  ["if", "keyword.control"],
-  ["is_empty", "entity.name.function.member"],
-  ["reject", "keyword.control"],
-  ["EmptyName", "entity.name.type"],
-]);
+expect("a command: signature and definition",
+  `add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
+add_item! = |list, title| {
+  cleaned = title.trim()
+  if cleaned.is_empty() { reject EmptyTitle }
+  items.insert!(Item { list, title: cleaned })
+}`,
+  [
+    ["add_item", "entity.name.function", 0],
+    ["=>", "keyword.other.effect.arrow"],
+    ["reject", "keyword.other.effect.kind", 0],
+    ["..", "meta.effects"],
+    ["add_item", "entity.name.function", 1],
+    ["list", "variable.parameter", 0],
+    ["cleaned", "variable.other.definition"],
+    ["is_empty", "entity.name.function.member"],
+    ["reject", "keyword.control", 1],
+    ["EmptyTitle", "entity.name.type", 1],
+    ["insert", "entity.name.function.member"],
+  ]);
 
-expect("effectful method", "  lists.insert!(TodoList { name: cleaned })", [
-  ["insert", "entity.name.function.member"],
-  ["!", "keyword.other.effect"],
-  ["TodoList", "entity.name.type"],
-]);
+expect("a query, with expect",
+  `items_in = |list, show| items
+  .filter(|i| i.list == list and keeps(show, i))
+  .sort_by(.created)
 
-expect("query", "query items_in(list: Id, show: Filter) -> List(Item) =", [
-  ["query", "storage.type.query"],
-  ["items_in", "entity.name.function"],
-  ["->", "keyword.operator.arrow"],
-  ["List", "support.type.builtin"],
-]);
+expect keeps(Active, { done: True }) == False`,
+  [
+    ["items_in", "entity.name.function"],
+    ["filter", "entity.name.function.member"],
+    ["and", "keyword.operator.wordlike"],
+    ["created", "variable.other.property"],
+    ["expect", "keyword.other"],
+  ]);
 
-expect("accessor shorthand", "    .sort_by(.created)", [
-  ["sort_by", "entity.name.function.member"],
-  ["created", "variable.other.property"],
-]);
+expect("a component: state, handlers, view, style",
+  `component ItemRow(item: Item) {
+  state editing = False
 
-expect("lambda definition", "  update = |m, msg| match msg {", [
-  ["update", "entity.name.function"],
-  ["m", "variable.parameter"],
-  ["msg", "variable.parameter"],
-  ["match", "keyword.control"],
-]);
-
-expect("markup and interpolation", '    span(class: "count") { "${row.open}" }', [
-  ["span", "entity.name.tag"],
-  ["class", "variable.other.property"],
-  ["count", "string.quoted.double"],
-  ["row", "meta.template.expression"],
-  ["open", "variable.other.property"],
-]);
-
-expect("comment swallows keywords", '# command x!() "not a string"', [
-  ['command x!() "not a string"', "comment.line.number-sign"],
-  ['command x!() "not a string"', "!storage.type.command"],
-]);
-
-expect("record", "record Item {\n  key id:  Id   = new_id!()\n  done:    Bool = False\n}", [
-  ["record", "storage.type.record"],
-  ["Item", "entity.name.type"],
-  ["key", "storage.modifier.key"],
-  ["id", "variable.other.property"],
-  ["new_id", "entity.name.function"],
-  ["!", "keyword.other.effect"],
-  ["False", "constant.language.boolean"],
-]);
-
-expect("table", "table items : Item", [
-  ["table", "storage.type.table"],
-  ["items", "entity.name.variable.table"],
-  ["Item", "entity.name.type"],
-]);
-
-expect("type declaration and fields", "  Model : {\n    selected:   [None, Some(Id)],\n  }", [
-  ["Model", "entity.name.type"],
-  ["selected", "variable.other.property"],
-  ["Some", "entity.name.type"],
-]);
-
-expect("for loop", "for row in all_lists() key row.list.id {", [
-  ["for", "keyword.control"],
-  ["in", "keyword.control"],
-  ["key", "keyword.control"],
-  ["all_lists", "entity.name.function"],
-  ["list", "variable.other.property"],
-]);
-
-expect("components, state and actions",
-  `component ListPanel(list: TodoList, on_deleted: action) {
-  state draft = ""
-  view = section {
-    form(on_submit: add) { input(bind: draft) }
+  save = || {
+    editing = False
+    rename_item!(item.id, draft)
+      then |ok| go(Home)
+      else |err| problem = err
   }
-  action add {
-    do add_item!(list.id, draft) else |err| problem = err
-    draft = ""
+
+  view = li {
+    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
+    span(class: { done: item.done }, on_click: save) { item.title }
+    button(on_click: || editing = False) { "Cancel" }
   }
-  action filter(f: Filter) { show = f }
-  action delete { do on_deleted() }
+
+  style {
+    .done { text-decoration: line-through }
+  }
 }`,
   [
     ["component", "storage.type.component"],
-    ["ListPanel", "entity.name.type.class"],
-    ["action", "support.type.builtin", 0],
+    ["ItemRow", "entity.name.type.class"],
     ["state", "storage.type.state"],
-    ["draft", "variable.other.definition", 0],
+    ["editing", "variable.other.definition", 0],
+    ["save", "entity.name.function"],
+    ["then", "keyword.control"],
+    ["else", "keyword.control"],
+    ["go", "entity.name.function"],
     ["view", "storage.type.view"],
-    ["section", "entity.name.tag"],
-    ["bind", "variable.other.property"],
-    ["action", "storage.type.action", 1],
-    ["add", "entity.name.function", 1],
-    ["do", "keyword.control"],
-    ["err", "variable.parameter"],
-    ["filter", "entity.name.function"],
-    ["on_deleted", "variable.other.property", 0],
-    ["on_deleted", "entity.name.function", 1],
+    ["li", "entity.name.tag"],
+    ["checkbox", "entity.name.tag"],
+    ["on_change", "variable.other.property"],
+    ["d", "variable.parameter"],
+    ["style", "storage.type.style"],
+    ["text-decoration", "meta.embedded.block.css"],
+    ["text-decoration", "!variable.other.property"],
   ]);
 
 expect("pages, links and the layout",
-  `page ListPage(id: Id) {
-  view = match find_list(id) {
-    Found(list) -> ListPanel(list: list)
-  }
-}
-client App {
+  `component App {
   view = main {
     Sidebar
     outlet
   }
 }
-link(to: ListPage(id: row.list.id)) { row.list.name }
-do go(Home)`,
+link(to: ListPage(id: row.list.id)) { row.list.name }`,
   [
-    ["page", "storage.type.page"],
-    ["ListPage", "entity.name.type.class"],
-    ["view", "storage.type.view", 0],
     ["Sidebar", "entity.name.type"],
     ["outlet", "constant.language"],
     ["link", "entity.name.tag"],
-    ["go", "entity.name.function"],
-    ["Home", "entity.name.type"],
+    ["ListPage", "entity.name.type"],
   ]);
 
-expect("client with a typed state", "client App {\n  state selected: [None, Some(Id)] = None\n}", [
-  ["client", "storage.type.client"],
-  ["App", "entity.name.type.class"],
-  ["state", "storage.type.state"],
-  ["selected", "variable.other.definition"],
-]);
+expect("loops, variables and early return",
+  `first_overdue = |items, today| {
+  var n = 0
+  for i in items {
+    if i.done { continue }
+    if i.due < today { return Some(i) }
+    while n < 3 { n = n + 1 }
+    break
+  }
+  crash "unreachable"
+}`,
+  [
+    ["var", "storage.type.var"],
+    ["n", "variable.other.definition", 0],
+    ["for", "keyword.control"],
+    ["in", "keyword.control"],
+    ["continue", "keyword.control"],
+    ["return", "keyword.control"],
+    ["while", "keyword.control"],
+    ["break", "keyword.control"],
+    ["crash", "keyword.control"],
+  ]);
 
-expect("words","  Active -> not i.done\n  None -> (m, none)\n  x = a and b or c", [
-  ["not", "keyword.operator.wordlike"],
-  ["none", "constant.language"],
-  ["and", "keyword.operator.wordlike"],
-  ["or", "keyword.operator.wordlike"],
-]);
+expect("literals",
+  `timeout = 30s
+drop = 10%
+ratio = 0.5f
+latency = 5ms..=2s
+letter = """
+  Dear \${name},\\n
+  """`,
+  [
+    ["30", "constant.numeric"],
+    ["s", "keyword.other.unit", 0],
+    ["10", "constant.numeric"],
+    ["%", "keyword.other.unit"],
+    ["0.5", "constant.numeric"],
+    ["f", "keyword.other.unit"],
+    ["..=", "keyword.operator.range"],
+    ["Dear", "string.quoted.triple"],
+    ["name", "meta.template.expression"],
+  ]);
 
-expect("do ... else", "  CreateList -> ({ ..m, list_draft: \"\" }, do create_list!(m.list_draft) else Rejected)", [
-  ["..", "keyword.operator.spread"],
-  ["do", "keyword.control"],
-  ["create_list", "entity.name.function"],
-  ["!", "keyword.other.effect"],
-  ["else", "keyword.control"],
-]);
-
-expect("not-equals is not an effect", "if id != x { }", [
+expect("operators", "a = n // 2\nb = x?.to_int()?\nc = id != other", [
+  ["//", "keyword.operator.arithmetic"],
+  ["?", "keyword.operator.try"],
   ["!=", "keyword.operator.comparison"],
   ["!=", "!keyword.other.effect"],
 ]);
 
-expect("signatures with effect rows",
-  "add_todo!   : Text => {}  ! <write todos, reject [EmptyTitle], random, time>\nApp.view    : Model -> Html(Msg)    ! <read todo_list, remaining>",
-  [
-    ["add_todo", "entity.name.function"],
-    ["=>", "keyword.other.effect.arrow"],
-    ["write", "keyword.other.effect.kind"],
-    ["todos", "meta.effects"],
-    ["random", "keyword.other.effect.kind"],
-    ["App.view", "entity.name.function"],
-    ["read", "keyword.other.effect.kind"],
-  ]);
-
-expect("extern",
-  'extern send_email! : Text, Text => {} ! <reject [Bounced]>\n  needs email\n  sim { ok 95%, else Bounced, latency 50ms..2s }',
-  [
-    ["extern", "storage.type.extern"],
-    ["send_email", "entity.name.function"],
-    ["email", "constant.language.capability"],
-    ["sim", "storage.type.sim"],
-    ["ok", "constant.language.deploy"],
-    ["95", "constant.numeric"],
-    ["%", "keyword.other.unit"],
-    ["latency", "constant.language.deploy"],
-    ["ms", "keyword.other.unit"],
-  ]);
-
-expect("effects and handlers",
-  "effect Audit {\n  fun note(event: Text)\n}\nhandler audit_table for Audit {\n  final ctl stop(why: Text)\n}",
-  [
-    ["effect", "storage.type.effect"],
-    ["Audit", "entity.name.type"],
-    ["fun", "storage.type.function"],
-    ["note", "entity.name.function"],
-    ["handler", "storage.type.handler"],
-    ["audit_table", "entity.name.function"],
-    ["for", "keyword.other.for"],
-    ["final", "storage.modifier.final"],
-    ["ctl", "storage.type.function"],
-  ]);
-
-const deploy = `deploy prod {
-  machine server  on "weft/server-rust-postgres"
-  machine browser on "weft/browser-ts" { count: many, offline: True }
-  place lists, items on server
-  consistency lists, items: session
-  budget daily_active: max $50/month
-  pin daily_active:    materialized
-}
-
-simulate flaky_wifi {
-  network:  drop 10%, latency 5ms..2s, offline 30%
-  steps:    500 random msgs per client
-}
-
-pin = 3`;
-
-expect("deploy blocks", deploy, [
-  ["deploy", "storage.type.deploy"],
-  ["prod", "entity.name.namespace"],
-  ["machine", "keyword.other.deploy"],
-  ["server", "entity.name.variable.machine"],
-  ["weft/server-rust-postgres", "string.quoted.double"],
-  ["many", "constant.language.deploy"],
-  ["place", "keyword.other.deploy"],
-  ["consistency", "keyword.other.deploy"],
-  ["session", "constant.language.deploy"],
-  ["budget", "keyword.other.deploy"],
-  ["$50/", "constant.numeric.money"],
-  ["month", "keyword.other.unit"],
-  ["materialized", "constant.language.deploy"],
-  ["simulate", "storage.type.deploy"],
-  ["10", "constant.numeric"],
-  ["..", "keyword.operator.spread"],
-  ["msgs", "constant.language.deploy"],
-  // Deploy vocabulary is not highlighted outside deploy blocks.
-  ["pin", "keyword.other.deploy", 0],
-  ["pin", "!keyword.other.deploy", 1],
-  ["pin", "variable.other.definition", 1],
+expect("where clauses", "largest : List(a) -> Option(a) where [a.compare : a, a -> Int]", [
+  ["largest", "entity.name.function"],
+  ["where", "keyword.other"],
+  ["Option", "support.type.builtin"],
 ]);
 
-{
-  // The block that holds { count: many, ... } must not end the deploy block early,
-  // and a second block must not nest inside the first.
-  const toks = rawTokens(hl, deploy);
-  const place = toks.find((t) => t.text.trim() === "place");
-  if (!place?.scopes.includes("meta.block.deploy.weft")) fail("nested braces ended the deploy block early");
-  const sim = toks.find((t) => t.text.trim() === "simulate");
-  if (sim?.scopes.filter((s) => s === "meta.block.deploy.weft").length !== 1) fail("simulate block nested inside deploy block");
+expect("effects and handlers",
+  `effect Audit {
+  note! : Text => {}
+  final abort! : Text => a
 }
+handler audit_to_table : Audit {
+  note! = |event| audit_log.insert!(AuditEntry { event })
+}
+run! = || with audit_to_table { clear_done!(id) }`,
+  [
+    ["effect", "storage.type.effect"],
+    ["Audit", "entity.name.type", 0],
+    ["note", "entity.name.function", 0],
+    ["final", "storage.modifier.final"],
+    ["handler", "storage.type.handler"],
+    ["audit_to_table", "entity.name.function"],
+    ["with", "keyword.control"],
+  ]);
+
+expect("configuration is records",
+  `prod = Deployment {
+  machines: {
+    server: Machine { platform: "weft/server-rust-postgres", count: Many },
+  },
+  consistency: { items: Session },
+  budgets: { add_item!: Budget { p99_latency: 50ms } },
+}`,
+  [
+    ["Deployment", "support.type.builtin"],
+    ["machines", "variable.other.property"],
+    ["Machine", "support.type.builtin"],
+    ["Many", "entity.name.type"],
+    ["Session", "entity.name.type"],
+    ["add_item!", "variable.other.property"],
+    ["50", "constant.numeric"],
+  ]);
 
 expect("markdown code blocks",
-  "Some prose.\n\n```weft\ncommand toggle!(id: Id) {\n  todos.update!(id, |t| { ..t, done: not t.done })\n}\n```\n\nMore prose with command in it.",
+  'Some prose.\n\n```weft title="commands/items.weft"\nset_done! = |id, done| items.update!(id, |i| { ..i, done })\n```\n\nMore prose with record in it.',
   [
-    ["command", "storage.type.command", 0],
-    ["toggle", "entity.name.function"],
+    ["set_done", "entity.name.function"],
     ["update", "entity.name.function.member"],
+    ["More prose with record in it.", "!storage.type.record"],
   ],
   "markdown");
 

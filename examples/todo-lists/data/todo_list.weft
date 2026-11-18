@@ -1,10 +1,9 @@
-# A named list of items. There are no users yet, so everyone shares the same
-# lists (see README, "Gaps").
-
+## A named list of items. There are no users yet, so everyone shares the same
+## lists (see README, "Gaps").
 record TodoList {
-  key id:  Id   = new_id!()
+  key id:  Id(TodoList) = new_id!()
   name:    Text
   created: Time = now!()
 }
 
-table lists : TodoList
+lists = Table(TodoList)

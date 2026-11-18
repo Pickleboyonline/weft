@@ -1,41 +1,39 @@
-# One item: a checkbox, its title (click to edit), and a delete button. Each row
-# keeps its own editing state, keyed by the item's id in ListPanel's loop.
-
+## One item: a checkbox, its title (click to edit), and a delete button. Each
+## row keeps its own editing state, keyed by the item's id.
 component ItemRow(item: Item) {
   state editing = False
   state draft   = ""
   state problem = None
 
+  edit = || {
+    editing = True
+    draft = item.title
+  }
+
+  save = || {
+    editing = False
+    rename_item!(item.id, draft) else |err| problem = err
+  }
+
   view = li {
     # The click carries the value the person wants, not "flip it".
-    checkbox(checked: item.done, on_change: done(not item.done))
+    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
     if editing {
       form(on_submit: save) {
         input(bind: draft)
-        button(on_click: cancel) { "Cancel" }
+        button(on_click: || editing = False) { "Cancel" }
       }
     } else {
-      span(class: if item.done "done" else "", on_click: edit) { item.title }
+      span(class: { done: item.done }, on_click: edit) { item.title }
     }
     match problem {
       None       -> nothing
       EmptyTitle -> p(class: "error") { "An item needs a title" }
     }
-    button(on_click: remove) { "Delete" }
+    button(on_click: || delete_item!(item.id)) { "Delete" }
   }
 
-  action edit {
-    editing = True
-    draft = item.title
+  style {
+    .done { text-decoration: line-through; opacity: 0.6 }
   }
-
-  action cancel { editing = False }
-
-  action save {
-    editing = False
-    do rename_item!(item.id, draft) else |err| problem = err
-  }
-
-  action done(d: Bool) { do set_done!(item.id, d) }
-  action remove        { do delete_item!(item.id) }
 }

@@ -32,16 +32,18 @@ starts a second VS Code window with the extension loaded.
 
 | Construct | Example | Scope |
 |---|---|---|
-| Declarations | `command`, `query`, `record`, `table`, `client`, `component`, `page`, `state`, `action`, `check`, `effect`, `handler`, `extern` | `storage.type.*` |
+| Declarations | `record`, `component`, `state`, `var`, `effect`, `handler`, `style`, and `view =` in a component | `storage.type.*` |
+| Definitions | `add_item! = \|list, title\| …` (functions), `items = Table(Item)` (other bindings) | `entity.name.function`, `variable.other.definition` |
 | The effect marker | the `!` in `insert!`, and `=>` | `keyword.other.effect` |
-| Effect rows | `! <write todos, reject [EmptyTitle]>` | `meta.effects`, with `read`/`write`/`reject`/`random`/`time` as `keyword.other.effect.kind` |
-| Control flow | `if`, `else`, `match`, `for`, `in`, `key`, `do`, `reject` | `keyword.control` |
+| Effect rows | `! <write items, reject [EmptyTitle], ..>` | `meta.effects`, with `read`/`write`/`reject`/`random`/`time`/`set`/`send`/`extern` as `keyword.other.effect.kind` |
+| Control flow | `if`, `else`, `match`, `for`, `in`, `while`, `break`, `continue`, `return`, `then`, `reject`, `crash`, `with` | `keyword.control` |
 | Markup elements | `li { … }`, `button(on_click: …)` | `entity.name.tag` |
-| Types and tags | `Todo`, `Some(id)`, `EmptyTitle` | `entity.name.type`; built-ins (`Text`, `U64`, …) as `support.type` |
-| Lambda parameters | `\|m, msg\|` | `variable.parameter` |
+| Styles | the CSS inside `style { … }` | CSS, through VS Code's own CSS grammar |
+| Types and tags | `Item`, `Some(id)`, `EmptyTitle` | `entity.name.type`; built-ins (`Text`, `Table`, `Deployment`, …) as `support.type` |
+| Lambda parameters | `\|list, title\|` | `variable.parameter` |
 | Fields and named arguments | `{ draft: Text }`, `on_click:` | `variable.other.property` |
-| Deployment vocabulary | `machine`, `place`, `consistency`, `budget`, `pin`, `session`, … | only inside `deploy`/`simulate` blocks |
-| Units | `5ms`, `10%`, `$50/month` | `constant.numeric` with `keyword.other.unit` |
+| Literals | `5ms`, `64MB`, `10%`, `0.5f`, `"""…"""` | `constant.numeric` with `keyword.other.unit`; `string.quoted.triple` |
+| Doc comments | `## …` | `comment.line.documentation` |
 
 Scopes follow TextMate conventions, so any VS Code theme colors them.
 

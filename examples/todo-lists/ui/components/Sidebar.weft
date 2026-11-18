@@ -1,14 +1,21 @@
-# Every list with its count of open items, and a form for a new one. Each list
-# is a link to its page; the link to the page you're on is marked as current.
-
+## Every list with its count of open items, and a form for a new one. Each list
+## is a link to its page; the link to the page you're on is marked as current.
 component Sidebar {
   state name    = ""
   state problem = None
 
+  create = || {
+    problem = None
+    create_list!(name)
+      then |id| go(ListPage(id: id))
+      else |err| problem = err
+    name = ""
+  }
+
   view = nav {
     ul {
-      for row in all_lists() key row.list.id {
-        li {
+      for row in all_lists() {
+        li(key: row.list.id) {
           link(to: ListPage(id: row.list.id)) {
             span { row.list.name }
             span(class: "count") { "${row.open}" }
@@ -25,9 +32,7 @@ component Sidebar {
     }
   }
 
-  action create {
-    problem = None
-    do create_list!(name) else |err| problem = err
-    name = ""
+  style {
+    .count { margin-left: auto; opacity: 0.6 }
   }
 }

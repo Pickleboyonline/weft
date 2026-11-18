@@ -286,4 +286,4 @@ more important:
 
 The open question this leaves is whether the first front end is the new
 language or one embedded in an existing language. That's for the project
-owner to decide; see [language.md](language.md), section 15.
+owner to decide; see [language.md](language.md), section 8.

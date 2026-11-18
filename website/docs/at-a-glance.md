@@ -6,70 +6,75 @@ description: The whole language on one page, through the todo-lists example.
 # Weft at a glance
 
 The whole language on one page, with each piece taken from the todo-lists
-example in the repo (`examples/todo-lists`). The full design is in the
-[language proposal](/design/language).
+example in the repo (`examples/todo-lists`). Every section links to its page
+in the [Reference](/docs/reference/overview).
 
 :::note[A design, not yet a language]
-This is the proposed syntax. Nothing here compiles yet, and details will
-change.
+This is the designed syntax. Nothing here compiles yet.
 :::
 
 ## A project's files
 
-Every project has the same layout, in the spirit of Rails:
+Every project has the same layout, in the spirit of Rails
+([Projects](/docs/reference/projects)):
 
 ```text
 todo-lists/
   weft.toml        the project's name
-  data/            records and their tables, one record per file
-  commands/        every write
-  queries/         every read the client uses
+  data/            records and their tables
+  commands/        functions that write: what clients call
+  queries/         functions that read: what views use
   ui/
-    App.weft       the client: the layout around every page
-    pages/         one page per URL: lists/[id].weft is /lists/:id
+    App.weft       the root component, around every page
+    pages/         one component per URL: lists/[id].weft is /lists/:id
     components/    one component per file
   checks/          invariants: the project's only tests
   deploy/          where it runs
   simulate/        simulated runs
 ```
 
-Everything outside `deploy/` and `simulate/` is written as if it ran on one
-machine. There are no `module` lines: the project is the module.
+There are no `module` lines and no imports: the project is the module. There
+are no `command`, `query` or `check` keywords either: what a function is
+follows from what it does and which folder it's in.
 
 ## Data
 
 ```weft title="data/item.weft"
+## One item on a list.
 record Item {
-  key id:  Id   = new_id!()    # `!`: generating an id is an effect
-  list:    Id
+  key id:  Id(Item)     = new_id!()   # `!`: making an id is an effect
+  list:    Id(TodoList)               # a reference to a row of lists
   title:   Text
   done:    Bool = False
   created: Time = now!()
 }
 
-table items : Item             # tables are always declared; weft never guesses plurals
+items = Table(Item, delete_with: { list: lists })
 ```
 
-```weft title="data/filter.weft"
-Filter : [All, Active, Done]   # a tag union
-```
+- A `record` is a type; `key` marks its primary key.
+- A table is a value: `Table(Item, …)`, with options such as deleting items
+  along with their list. See [Data and tables](/docs/reference/data).
 
 ## Commands: every write
 
 ```weft title="commands/items.weft"
-command add_item!(list: Id, title: Text) {
+add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
+add_item! = |list, title| {
   cleaned = title.trim()
   if cleaned.is_empty() { reject EmptyTitle }
   if not lists.has(list) { reject NoSuchList }
-  items.insert!(Item { list: list, title: cleaned })
+  items.insert!(Item { list, title: cleaned })
 }
 ```
 
-- A command is a transaction: it takes effect entirely or not at all.
-- `!` marks anything that changes the world. Here that's the command itself
-  and `insert!`.
-- `reject` stops the command with a reason. The reasons become part of its
-  type, and callers must handle them.
+- A function in `commands/` that writes is a command: clients call it, and it
+  runs as a transaction.
+- Its signature is required, because it's the API: parameter types, result,
+  and the `reject` reasons. `..` stands for the rest of its effects.
+- `!` marks anything that changes the world.
+- `reject` stops the command and undoes it. See
+  [Commands and queries](/docs/reference/commands-and-queries).
 
 ## Queries: every read
 
@@ -80,33 +85,19 @@ keeps = |show, i| match show {
   Done   -> i.done
 }
 
-query items_in(list: Id, show: Filter) -> List(Item) =
-  items
-    .filter(|i| i.list == list and keeps(show, i))
-    .sort_by(.created)
+expect keeps(Active, { done: True }) == False
+
+items_in = |list, show| items
+  .filter(|i| i.list == list and keeps(show, i))
+  .sort_by(.created)
 ```
 
-- `|show, i|` is a function. `match` must handle every case.
-- A `query` may read tables but never write them. Clients subscribe to
-  queries, and the compiler decides whether to compute one on the server or on
-  the client's local copy.
-- `.created` is shorthand for `|i| i.created`.
+- A function is `name = |parameters| body`. `match` must cover every case.
+- A read-only function in `queries/` is a query. Views that use it stay in
+  sync as the data changes, on this device or another.
+- `expect` states a fact about pure code; `weft test` checks it.
 
-## Effects in types
-
-You rarely write these; the compiler infers them and your editor shows them.
-
-```weft
-add_item! : Id, Text => {}  ! <write items, read lists, reject [EmptyTitle, NoSuchList], random, time>
-items_in  : Id, Filter -> List(Item)  ! <read items>
-keeps     : Filter, Item -> Bool
-```
-
-- `=>` means the function changes the world, and `->` means it doesn't.
-- The row after `!` says exactly what it touches. `random` and `time` are
-  there because a new `Item` gets a fresh id and a timestamp.
-
-## The client: components, state and actions
+## The client: components
 
 ```weft title="ui/components/ItemRow.weft"
 component ItemRow(item: Item) {
@@ -114,15 +105,25 @@ component ItemRow(item: Item) {
   state draft   = ""
   state problem = None
 
+  edit = || {
+    editing = True
+    draft = item.title
+  }
+
+  save = || {
+    editing = False
+    rename_item!(item.id, draft) else |err| problem = err
+  }
+
   view = li {
-    checkbox(checked: item.done, on_change: done(not item.done))
+    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
     if editing {
       form(on_submit: save) {
         input(bind: draft)
-        button(on_click: cancel) { "Cancel" }
+        button(on_click: || editing = False) { "Cancel" }
       }
     } else {
-      span(on_click: edit) { item.title }
+      span(class: { done: item.done }, on_click: edit) { item.title }
     }
     match problem {
       None       -> nothing
@@ -130,54 +131,40 @@ component ItemRow(item: Item) {
     }
   }
 
-  action edit {
-    editing = True
-    draft = item.title
+  style {
+    .done { text-decoration: line-through }
   }
-
-  action cancel { editing = False }
-
-  action save {
-    editing = False
-    do rename_item!(item.id, draft) else |err| problem = err
-  }
-
-  action done(d: Bool) { do set_done!(item.id, d) }
 }
 ```
 
-- `state` is local to this component: each row has its own `editing` and
-  `draft`. Types are inferred. `problem` is `[None, EmptyTitle]` because that's
-  what `rename_item!` can reject with.
-- `view` is markup and can't change anything. Event attributes name an
-  action: `on_click: edit`, or `on_change: done(not item.done)` with an
-  argument.
-- An `action` is the only place state changes. `draft = item.title` sets
-  state; `do` sends a command once the action finishes.
-- `else |err| …` is required because `rename_item!` can reject. Leave it out
-  and the program doesn't compile.
-- `input(bind: draft)` keeps the input and the state in step, with no action
-  per keystroke.
+- **`state`** is local to each instance: every row has its own `editing`.
+  Types are inferred: `problem` is `[None, EmptyTitle]` because that's what
+  `rename_item!` can reject with.
+- **Handlers** are ordinary functions in the component that change its state,
+  named (`edit`) or inline (`|| editing = False`). They're the only place
+  state changes.
+- **Calling a command** in a handler sends it. `else |err| …` is required
+  because `rename_item!` can reject; `then |result| …` is optional.
+- **`view`** is markup, and can't change anything. **`style`** is CSS scoped to
+  this component.
 
-## Pages and the client
+Underneath, each component compiles to the Elm Architecture: every handler
+becomes a message, and the assignments become one pure update function. See
+[UI](/docs/reference/ui).
 
-Each file in `ui/pages/` is a page, and its path is its URL. A page is a
-component whose parameters come from the URL:
+## Pages
 
 ```weft title="ui/pages/lists/[id].weft"
-page ListPage(id: Id) {
+component ListPage(id: Id(TodoList)) {
   view = match find_list(id) {
-    Missing     -> p { "This list was deleted on another device" }
-    Found(list) -> ListPanel(list: list)
+    None       -> p { "This list was deleted on another device" }
+    Some(list) -> ListPanel(list: list)
   }
 }
 ```
 
-The `client` is the layout around every page. `outlet` marks where the current
-page goes:
-
 ```weft title="ui/App.weft"
-client App {
+component App {
   view = main {
     Sidebar
     outlet
@@ -185,60 +172,60 @@ client App {
 }
 ```
 
-Links name a page and its parameters, so a broken link is a compile error:
-
-```weft
-link(to: ListPage(id: row.list.id)) { row.list.name }
-```
-
-Views read server data (`find_list(id)`, `items_in(…)`) as if it were local;
-the compiler adds the syncing. Underneath, each component compiles to the Elm
-Architecture: every action becomes a message, and the assignments become a
-pure state update.
+- A file's path under `ui/pages/` is its URL, and a page's parameters come
+  from the URL.
+- `ui/App.weft` wraps every page; `outlet` marks where the page goes.
+- Links and navigation are typed: `link(to: ListPage(id: x)) { … }`, and
+  `go(Home)` in a handler.
 
 ## Checks: the only tests you write
 
 ```weft title="checks/items.weft"
-check titles_not_blank = items.all(|i| not i.title.trim().is_empty())
-check no_orphans       = items.all(|i| lists.has(i.list))
+titles_not_blank = items.all(|i| not i.title.trim().is_empty())
+no_orphans       = items.all(|i| lists.has(i.list))
 ```
 
-The simulator evaluates these after every step of every simulated run. Two
-more checks are always on: every run must match some one-machine run, and
-clients must converge with the server.
+A `Bool` in `checks/` is an invariant. The simulator checks every one after
+every step of every simulated run. Two more are always on: every run must
+match some one-machine run, and clients must converge with the server. See
+[Checks and tests](/docs/reference/checks-and-tests).
 
 ## Deployment and simulation
 
 ```weft title="deploy/prod.weft"
-deploy prod {
-  machine server  on "weft/server-rust-postgres"
-  machine browser on "weft/browser-ts" { count: many, offline: True }
-
-  consistency lists, items: session
+prod = Deployment {
+  machines: {
+    server:  Machine { platform: "weft/server-rust-postgres" },
+    browser: Machine { platform: "weft/browser-ts", count: Many, offline: True },
+  },
+  consistency: { lists: Session, items: Session },
 }
 ```
 
 ```weft title="simulate/flaky_wifi.weft"
-simulate flaky_wifi {
-  clients: 3
-  network: drop 10%, latency 5ms..2s, offline 30%
-  steps:   500 random actions per client
+flaky_wifi = Simulation {
+  clients:            3,
+  actions_per_client: 500,
+  network:            Network { drop: 10%, latency: 5ms..=2s, offline: 30% },
 }
 ```
 
-Conventions fill in the rest:
-- `deploy local`, the one-process reference, is generated.
-- Tables go on the machine named `server`, and the client on `browser`.
-- Simulations run `prod`'s layout on simulated platforms.
-- `weft explain` lists every default it applied.
+- Deployments and simulations are ordinary values, checked like any other
+  code.
+- Conventions fill in the rest: the one-process `local` deployment is
+  generated, tables go on `server`, and the client on `browser`. See
+  [Deployment and simulation](/docs/reference/deployment).
 
 ## Escape hatches
 
-Code weft can't see into is declared as an `extern`. It must name the
-capability it needs and say how it behaves in simulation:
-
-```weft
-extern send_email! : Text, Text => {} ! <reject [Bounced]>
-  needs email
-  sim { ok 95%, else Bounced, latency 50ms..2s }
+```weft title="externs/send_email.weft"
+send_email! : Text, Text => {} ! <reject [Bounced]>
+send_email! = Extern {
+  needs: [Email],
+  sim:   Fallible { ok: 95%, error: Bounced, latency: 50ms..=2s },
+}
 ```
+
+Code weft can't see into is an extern: a full signature, the capabilities it
+needs, a simulation model, and host code beside it. See
+[Externs, jobs and endpoints](/docs/reference/resources).

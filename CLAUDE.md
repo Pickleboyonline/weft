@@ -8,20 +8,33 @@ The first scaffold (Python tracing front end, IR v0, deterministic simulator) is
 in commit fb58534, kept for reference. The redesign moves the user-facing layer
 up to a logical program plus placement/consistency annotations.
 
-The current language proposal is [docs/language.md](docs/language.md). Its open
-decisions (section 15) belong to the project owner: don't treat its
-recommendations as settled. Concept notes on the physical layer:
+**The language reference is the specification:** `website/docs/reference/`
+(18 pages, on the docs site under Reference). Any syntax in examples, docs or
+grammars must match it; change the reference first.
+[docs/language.md](docs/language.md) explains *why* the language looks as it
+does. Its open decisions (section 8) belong to the project owner: don't treat
+them as settled. Concept notes on the physical layer:
 [docs/jax-analogy.md](docs/jax-analogy.md) and
 [docs/infrastructure-primitives.md](docs/infrastructure-primitives.md). How
-`check`s could be verified (simulation, model checking, proof):
+checks could be verified (simulation, model checking, proof):
 [docs/testing-and-proof.md](docs/testing-and-proof.md).
 
-`examples/` holds weft projects written against that proposal, starting with
+Design the whole language at once: don't split features into "v1" and "later".
+
+Key rules that are easy to get wrong:
+- No `command`, `query`, `check`, `table`, `client`, `page` or `action`
+  keywords. A function's role comes from its effects and folder; tables,
+  externs, jobs, deployments and simulations are values (`items = Table(Item)`,
+  `prod = Deployment { … }`).
+- Configuration is records and named arguments with ordinary values, never
+  English-like phrases.
+- Components are Svelte-style: `state`, plain `=` assignment in handler
+  functions, `view = …` markup, scoped `style { … }`.
+
+`examples/` holds weft projects written in the designed syntax, starting with
 [examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:
 they're design artifacts, and each README lists the gaps it exposed. Projects
-follow the conventional layout (`data/`, `commands/`, `queries/`, `ui/`,
-`checks/`, `deploy/`, `simulate/`) in section 9 of the proposal. Server-side
-reads are `query`s; `view` means a component's markup only.
+follow the conventional layout on the reference's Projects page.
 
 [editors/vscode](editors/vscode/README.md) is a VS Code extension that
 highlights `.weft` files and ```` ```weft ```` blocks in Markdown. When the

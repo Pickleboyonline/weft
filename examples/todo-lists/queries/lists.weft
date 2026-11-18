@@ -1,10 +1,8 @@
 # Reads of `lists` that the client uses.
 
-# Every list with its number of open items, oldest first.
-query all_lists() -> List({ list: TodoList, open: U64 }) =
-  lists
-    .sort_by(.created)
-    .map(|l| { list: l, open: items.count(|i| i.list == l.id and not i.done) })
+## Every list with its number of open items, oldest first.
+all_lists = || lists
+  .sort_by(.created)
+  .map(|l| { list: l, open: items.count_if(|i| i.list == l.id and not i.done) })
 
-query find_list(id: Id) -> [Missing, Found(TodoList)] =
-  lists.get(id)
+find_list = |id| lists.get(id)

@@ -22,15 +22,17 @@ const ideas = [
   },
 ];
 
-const sample = `command add_item!(list: Id, title: Text) {
+const sample = `add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
+add_item! = |list, title| {
   cleaned = title.trim()
   if cleaned.is_empty() { reject EmptyTitle }
   if not lists.has(list) { reject NoSuchList }   # deleted on another device?
-  items.insert!(Item { list: list, title: cleaned })
+  items.insert!(Item { list, title: cleaned })
 }
 
-query items_in(list: Id, show: Filter) -> List(Item) =
-  items.filter(|i| i.list == list and keeps(show, i)).sort_by(.created)`;
+items_in = |list, show| items
+  .filter(|i| i.list == list and keeps(show, i))
+  .sort_by(.created)`;
 
 export default function Home(): ReactNode {
   return (

@@ -1,6 +1,5 @@
-# One list: its name (click to rename), a form to add items, the items, and
-# filters.
-
+## One list: its name (click to rename), a form to add items, the items, and
+## filters.
 component ListPanel(list: TodoList) {
   state show     = All
   state draft    = ""
@@ -8,12 +7,35 @@ component ListPanel(list: TodoList) {
   state new_name = ""
   state problem  = None
 
+  open_count = items_in(list.id, All).count_if(|i| not i.done)
+
+  start_renaming = || {
+    renaming = True
+    new_name = list.name
+  }
+
+  rename = || {
+    renaming = False
+    rename_list!(list.id, new_name) else |err| problem = err
+  }
+
+  add = || {
+    problem = None
+    add_item!(list.id, draft) else |err| problem = err
+    draft = ""
+  }
+
+  delete = || {
+    delete_list!(list.id)
+    go(Home)
+  }
+
   view = section {
     header {
       if renaming {
         form(on_submit: rename) {
           input(bind: new_name)
-          button(on_click: stop_renaming) { "Cancel" }
+          button(on_click: || renaming = False) { "Cancel" }
         }
       } else {
         h2(on_click: start_renaming) { list.name }
@@ -31,41 +53,16 @@ component ListPanel(list: TodoList) {
     }
 
     ul {
-      for i in items_in(list.id, show) key i.id { ItemRow(item: i) }
+      for i in items_in(list.id, show) { ItemRow(item: i) }
     }
 
     footer {
+      span { "${open_count} left" }
       for f in [All, Active, Done] {
-        button(on_click: filter(f), pressed: show == f) { f.to_str() }
+        button(on_click: || show = f, pressed: show == f) { f.to_text() }
       }
-      button(on_click: clear) { "Clear done" }
+      button(on_click: || clear_done!(list.id)) { "Clear done" }
       button(on_click: delete) { "Delete list" }
     }
-  }
-
-  action start_renaming {
-    renaming = True
-    new_name = list.name
-  }
-
-  action stop_renaming { renaming = False }
-
-  action rename {
-    renaming = False
-    do rename_list!(list.id, new_name) else |err| problem = err
-  }
-
-  action add {
-    problem = None
-    do add_item!(list.id, draft) else |err| problem = err
-    draft = ""
-  }
-
-  action filter(f: Filter) { show = f }
-  action clear             { do clear_done!(list.id) }
-
-  action delete {
-    do delete_list!(list.id)
-    do go(Home)
   }
 }

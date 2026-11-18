@@ -18,7 +18,7 @@ yet, so none of it has been tested against a real compiler.
 > impossible for one of your invariants, the compiler says which invariant,
 > and why, instead of quietly weakening it.
 
-The *one-machine program* is your code deployed with `deploy local`: one
+The *one-machine program* is your code deployed as `local`: one
 process, in memory, with no network. It's the reference everything else is
 compared against.
 
@@ -34,7 +34,7 @@ setting, `session`:
   locally first, and the server confirms or rejects them later.
 - **Clients converge.** Once messages stop flowing, every client's query results equal
   the server's.
-- **Your checks hold.** Every `check` holds on the server after every step.
+- **Your checks hold.** Every check (in `checks/`) holds on the server after every step.
   A client's copy is checked once its sync settles.
 - **Rejections are delivered.** A command the server rejects comes back to the
   client as a typed reason (`Rejected(NoSuchList)`), and the client's
@@ -44,22 +44,23 @@ What stronger or weaker settings guarantee is part of the open design.
 
 ## What the simulator injects
 
-Fault model as currently designed. "Specified" means `deploy.weft` has syntax
-for it today; "planned" means the design calls for it but hasn't specified it.
+Fault model as designed. "Specified" means a
+[`Simulation`](/docs/reference/deployment#simulations) has a field for it;
+"planned" means the design calls for it but doesn't specify it yet.
 
 | Fault | What happens | Status |
 |---|---|---|
-| Message loss | A percentage of messages are dropped (`drop 10%`) | Specified |
-| Delay and reordering | Each message gets a random latency (`latency 5ms..2s`), so messages overtake each other | Specified |
-| Offline periods | A client is disconnected for a share of the run (`offline 30%`) and queues its commands | Specified |
-| Extern failures | Each extern's `sim` block decides how it fails (`ok 95%, else Bounced`) | Specified |
-| Duplicated messages | A message is delivered more than once | Planned |
-| Crashes and restarts | A server or client stops and recovers from durable state | Planned |
+| Message loss | A percentage of messages are dropped (`drop: 10%`) | Specified |
+| Delay and reordering | Each message gets a random latency (`latency: 5ms..=2s`), so messages overtake each other | Specified |
+| Duplicated messages | A message is delivered more than once (`duplicate: 1%`) | Specified |
+| Offline periods | A client is disconnected for a share of the run (`offline: 30%`) and queues its commands | Specified |
+| Crashes and restarts | A server or client stops and recovers from durable state (`crashes: Crashes { … }`) | Specified |
+| Extern failures | Each extern's simulation model decides how it fails (`Fallible { ok: 95%, error: Bounced }`) | Specified |
 | Clock skew | Machines disagree about the time | Planned |
 
 Every simulated run is checked three ways:
 
-1. **Your `check`s**, after every step on the server, and on each client once
+1. **Your checks**, after every step on the server, and on each client once
    it has synced.
 2. **The oracle:** the run's final data must match some one-at-a-time order of
    the same commands on the one-machine program.

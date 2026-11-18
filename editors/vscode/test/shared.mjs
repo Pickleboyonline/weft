@@ -11,7 +11,8 @@ export const repoRoot = join(extRoot, "..", "..");
 
 const load = (p) => JSON.parse(readFileSync(join(extRoot, p), "utf8"));
 
-export const weftLang = { ...load("syntaxes/weft.tmLanguage.json"), name: "weft" };
+// `style { … }` blocks embed CSS, so the CSS grammar has to be loaded too.
+export const weftLang = { ...load("syntaxes/weft.tmLanguage.json"), name: "weft", embeddedLangs: ["css"] };
 const mdInjection = {
   ...load("syntaxes/weft.markdown.tmLanguage.json"),
   name: "weft-markdown-injection",
@@ -22,7 +23,7 @@ const mdInjection = {
 export async function highlighter() {
   return createHighlighter({
     themes: ["dark-plus", "light-plus"],
-    langs: ["markdown", weftLang, mdInjection],
+    langs: ["markdown", "css", weftLang, mdInjection],
   });
 }
 
@@ -61,7 +62,8 @@ export function docBlocks() {
       if (statSync(p).isDirectory()) walk(p);
       else if (name.endsWith(".md")) {
         const text = readFileSync(p, "utf8");
-        for (const m of text.matchAll(/^```weft\n([\s\S]*?)^```/gm)) {
+        // ```weft blocks, including ones with attributes: ```weft title="data/item.weft"
+        for (const m of text.matchAll(/^```weft(?:[ \t][^\n]*)?\n([\s\S]*?)^```/gm)) {
           blocks.push({ file: relative(repoRoot, p), code: m[1] });
         }
       }

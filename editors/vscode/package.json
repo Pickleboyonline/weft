@@ -34,7 +34,10 @@
       {
         "language": "weft",
         "scopeName": "source.weft",
-        "path": "./syntaxes/weft.tmLanguage.json"
+        "path": "./syntaxes/weft.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.css": "css"
+        }
       },
       {
         "scopeName": "markdown.weft.codeblock",

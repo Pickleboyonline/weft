@@ -1,0 +1,10 @@
+/* Applies to the whole client (reference: UI, Styling). */
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+}
+
+.error {
+  color: firebrick;
+}

@@ -1,0 +1,8 @@
+# Shown for any URL no other page matches, or whose parameters don't parse.
+
+component NotFound {
+  view = section {
+    h2 { "Page not found" }
+    link(to: Home) { "Back to your lists" }
+  }
+}

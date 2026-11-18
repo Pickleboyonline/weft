@@ -3,10 +3,10 @@
 A small CRUD app written in weft: named lists, each holding todo items.
 
 **Nothing here runs.** There is no weft compiler yet. This is a design
-artifact: it shows what a real weft project would look like, following
-[docs/language.md](../../docs/language.md), and it exposes the places where
-that proposal is still unspecified (see [Gaps](#gaps)). Command output in this
-README is illustrative.
+artifact: it shows what a real weft project would look like, following the
+language reference on the documentation site (`website/docs/reference/`), and
+it exposes the places where the design still has gaps (see [Gaps](#gaps)).
+Command output in this README is illustrative.
 
 ## The app
 
@@ -18,41 +18,48 @@ README is illustrative.
 
 ## Files
 
-The project follows weft's conventional layout
-([language.md, section 9](../../docs/language.md)), so where each thing lives is
-predictable:
+The project follows weft's conventional layout (reference: Projects), so where
+each thing lives is predictable:
 
 ```text
 todo-lists/
   weft.toml                  the project's name
   data/
     todo_list.weft           record TodoList, table lists
-    item.weft                record Item, table items
+    item.weft                record Item, table items (deleted with their list)
     filter.weft              Filter : [All, Active, Done]
   commands/
     lists.weft               create_list!, rename_list!, delete_list!
     items.weft               add_item!, rename_item!, set_done!, delete_item!, clear_done!
   queries/
     lists.weft               all_lists, find_list
-    items.weft               items_in
+    items.weft               keeps, items_in, and expects for keeps
   ui/
-    App.weft                 the client: a sidebar beside the current page
+    App.weft                 the root component: a sidebar beside the current page
     pages/
       index.weft             /            Home
       lists/[id].weft        /lists/:id   ListPage
+      404.weft               anything else
     components/
       Sidebar.weft           every list, as links, and a new-list form
       ListPanel.weft         one list: rename, add items, filter, delete
       ItemRow.weft           one item: check off, edit inline, delete
+    styles/
+      global.css
   checks/
     lists.weft               names_not_blank
     items.weft               titles_not_blank, no_orphans
   deploy/
     prod.weft                a Postgres server and any number of browsers
   simulate/
-    two_devices.weft
-    flaky_wifi.weft
+    two_devices.weft         random runs on a slow network
+    flaky_wifi.weft          random runs on a bad network
+    small.weft               every order of 3 actions for 2 browsers
 ```
+
+There are no `command`, `query` or `check` keywords. A function in
+`commands/` that writes is a command, a read-only function in `queries/` is a
+query, and a `Bool` in `checks/` is a check.
 
 What's missing on purpose:
 - `deploy local`, which is generated;
@@ -67,7 +74,7 @@ one.
 
 ### 1. `set_done!` instead of `toggle!`
 
-The checkbox runs `done(not item.done)`: the value the person wants, not
+The checkbox sends `set_done!(item.id, d)` with the checkbox's new value: what the person wants, not
 "flip it". If your phone and laptop both tick the same box, the item ends up
 done, which is what you both meant. With a `toggle!` it would flip twice and end
 up not done. That's correct (it's what one machine would do with two toggles)
@@ -161,34 +168,20 @@ $ weft deploy prod
 
 ## Gaps
 
-Things this example had to assume that [docs/language.md](../../docs/language.md)
-doesn't define yet. Each is a design question for the project owner, not a
-decision.
+Places where the design is still unsettled, found by writing this example.
+Each is a question for the project owner, not a decision.
 
-1. **Table API.** The example uses `lists.has(id)` and `lists.get(id)`
-   returning `[Missing, Found(TodoList)]`. Neither is specified.
-2. **Updating or deleting a missing row.** `set_done!` on an item that was just
-   deleted elsewhere: a no-op, or a rejection? The example assumes a no-op,
-   which is why `set_done!` has no `reject`.
-3. **References between tables.** `Item.list` is a plain `Id`, so the cascade
-   in `delete_list!` and the `no_orphans` check are written by hand. A
-   reference type (`list: Ref(TodoList)` with "delete with parent") would let
-   the compiler know the relationship directly.
-4. **One `problem` per component.** `ListPanel` shows rename errors and
+1. **One `problem` per component.** `ListPanel` shows rename errors and
    add-item errors through a single `problem` state, so a failed rename can
    replace the message from a failed add. Separate states work but repeat
    themselves. A per-form error helper, or rejections shown next to the form
-   that caused them, would fit better. Relatedly, a rejection that arrives after
-   its row was deleted is dropped (language.md, open decision 8).
-5. **Users and authorization.** There are no users: everyone sees every list.
-   This is open decision 7 in language.md, and per-user lists are the natural
-   next version of this example.
-6. **Ids in URLs.** `/lists/:id` puts an `Id` in the address bar. What an `Id`
-   looks like there (opaque, short, guessable or not) isn't specified.
-7. **The not-found page.** A page shows the client's not-found page when a URL
-   parameter doesn't parse, but nothing says where that page is defined. A
-   `ui/pages/404.weft` convention is one option.
-8. **Navigating after a command.** `ListPanel`'s `delete` runs `do go(Home)`
-   straight after sending `delete_list!`, before the server confirms it. That's
-   fine here because `delete_list!` can't reject. For a command that can, the
-   rule isn't specified: navigate at once and come back on rejection, or wait.
+   that caused them, would fit better.
+2. **Users and authorization.** There are no users: everyone sees every list.
+   This is an open decision in [docs/language.md](../../docs/language.md), and
+   per-user lists are the natural next version of this example.
+
+Settled by the reference since earlier versions of this example: the table
+API, updating a missing row (a no-op), references between tables (`Id(T)` and
+`delete_with`), ids in URLs (an opaque 26-character token), the not-found page
+(`ui/pages/404.weft`), and navigating after a command that can reject (use
+`then`, as the sidebar does after `create_list!`).

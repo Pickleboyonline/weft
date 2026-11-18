@@ -6,7 +6,9 @@ keeps = |show, i| match show {
   Done   -> i.done
 }
 
-query items_in(list: Id, show: Filter) -> List(Item) =
-  items
-    .filter(|i| i.list == list and keeps(show, i))
-    .sort_by(.created)
+expect keeps(Active, { done: True }) == False
+expect keeps(Done, { done: True })
+
+items_in = |list, show| items
+  .filter(|i| i.list == list and keeps(show, i))
+  .sort_by(.created)

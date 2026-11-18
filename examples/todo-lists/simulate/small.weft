@@ -1,0 +1,7 @@
+## Every possible order of three actions each, for two browsers. Random runs
+## find the delete race (README, "The delete race") by luck; this finds it for
+## certain, because it's a two-action failure.
+small = Simulation {
+  clients: 2,
+  exhaust: { actions_per_client: 3 },
+}

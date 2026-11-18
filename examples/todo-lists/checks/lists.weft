@@ -9,4 +9,4 @@
 #     commands (the oracle);
 #   - once sync settles, every browser's query results equal the server's.
 
-check names_not_blank = lists.all(|l| not l.name.trim().is_empty())
+names_not_blank = lists.all(|l| not l.name.trim().is_empty())

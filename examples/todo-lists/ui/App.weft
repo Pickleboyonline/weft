@@ -1,9 +1,12 @@
-# The client: the layout around every page. `outlet` is where the current page
-# goes. Which list is open lives in the URL (ui/pages/), not in state here.
-
-client App {
+## The client's root component: a sidebar beside the current page. `outlet` is
+## where the page goes. Which list is open lives in the URL (ui/pages/).
+component App {
   view = main {
     Sidebar
     outlet
+  }
+
+  style {
+    main { display: flex; gap: 2rem }
   }
 }

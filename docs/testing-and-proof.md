@@ -1,6 +1,6 @@
 # Testing and proof
 
-How weft's `check`s could be verified: by example tests, property-based
+How weft's checks could be verified: by example tests, property-based
 testing, deterministic simulation, model checking or proof. The figures below
 were checked against primary sources on 2026-11-18; the sources are in
 [reading-list.md](reading-list.md), under "Testing and verification".
@@ -119,7 +119,7 @@ methods.
 
 ### One check, three strengths
 
-Rather than choosing one method, weft could let the same `check` be backed at
+Rather than choosing one method, weft could let the same check be backed at
 increasing strength:
 
 | Strength | How | Catches | Cost |
@@ -137,9 +137,11 @@ simulator exercises them together, on every run.
 
 ### Open questions
 
-- **Syntax.** How a `check` asks for more strength: a keyword (`check …
-  exhaust 2 clients 3 actions`), a separate file of proofs as in Bend, or a
-  setting in `simulate/`.
+- **Syntax for proofs.** Exhausting is designed: it's a setting on a
+  simulation (`Simulation { exhaust: { actions_per_client: 3 } }`; see the
+  reference's "Checks and tests" page). How a check is *proven* isn't: perhaps
+  a separate file of proofs beside `checks/`, as Bend keeps laws and proofs in
+  separate files.
 - **Who writes proofs.** Bend's split (a person writes the law, an AI writes
   the proof) fits weft's agent-first workflow. It needs a proof language small
   enough for agents to write reliably.

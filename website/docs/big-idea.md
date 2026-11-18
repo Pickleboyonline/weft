@@ -43,14 +43,14 @@ types kept in step with server types by hand.
 local:
 
 ```weft
-action add {
-  do add_todo!(draft) else |err| problem = err
+add = || {
+  add_todo!(draft) else |err| problem = err
   draft = ""
 }
 ```
 
 ```weft
-ul { for t in todo_list(show) key t.id { TodoRow(todo: t) } }
+ul { for t in todo_list(show) { TodoRow(todo: t) } }
 ```
 
 The compiler is meant to generate the endpoint, the client code that calls
@@ -61,23 +61,23 @@ it, and the sync that keeps the client's copy of `todo_list` fresh.
 **Today:** the architecture is spread through the code. Moving logic from
 server to client, or adding offline support, means rewriting it.
 
-**In weft:** the logic lives in `src/`. A separate `deploy.weft` says which
-machines exist, where each table lives, and how fresh each screen must be:
+**In weft:** the logic lives in `data/`, `commands/`, `queries/` and `ui/`. A
+deployment, in its own file, says which machines exist and how fresh each
+screen must be:
 
 ```weft
-deploy prod {
-  machine server  on "weft/server-rust-postgres"
-  machine browser on "weft/browser-ts" { count: many, offline: True }
-
-  place lists, items on server
-  place App          on browser
-  consistency lists, items: session
+prod = Deployment {
+  machines: {
+    server:  Machine { platform: "weft/server-rust-postgres" },
+    browser: Machine { platform: "weft/browser-ts", count: Many, offline: True },
+  },
+  consistency: { lists: Session, items: Session },
 }
 ```
 
-The same source also has a `deploy local`: one process in memory, with no
-network at all. That's the reference every other deployment is checked
-against.
+Every project also has a deployment called `local`: one process in memory,
+with no network at all. It's generated, never written, and it's the reference
+every other deployment is checked against.
 
 ### 3. Effects are visible
 
@@ -115,7 +115,7 @@ find exactly this kind of difference.
 **Today:** consistency is whatever the database and caching layer happen to
 provide, and you find out what that means when something goes wrong.
 
-**In weft:** you declare it (`consistency lists, items: session`). The
+**In weft:** you declare it (`consistency: { lists: Session }`). The
 compiler is meant to tell you which of your invariants that choice can't keep.
 See [The promise and its limits](promise).
 

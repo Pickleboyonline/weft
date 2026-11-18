@@ -71,12 +71,11 @@ Most of what decides these choices is visible in the program, much as XLA
 reads tensor shapes from a program. An analytics table added to the todo app:
 
 ```weft
-table events : Event                     # only ever insert!-ed
+events = Table(Event)                    # only ever insert!-ed
 
-query daily_active() -> List({ day: Date, users: U64 }) =
-  events
-    .group_by(|e| e.at.day())
-    .map(|g| { day: g.key, users: g.distinct(.user).count() })
+daily_active = || events
+  .group_by(|e| e.at.date())
+  .map(|g| { day: g.key, users: g.items.distinct_by(.user).count() })
 ```
 
 | Signal in the code | What the compiler concludes |
@@ -125,10 +124,10 @@ they change what users experience. Each one is a point on a known tradeoff:
 
 | Choice | Theory | Example annotation |
 |---|---|---|
-| Read cost vs write cost vs storage | RUM | `pin daily_active: materialized` |
-| Freshness vs cost | Incremental view maintenance | `consistency daily_active: eventual(1h)` |
-| Durability vs latency | Durability levels | `durability todos: committed` |
-| Consistency vs latency | PACELC | `consistency todos: session` |
+| Read cost vs write cost vs storage | RUM | `pins: { daily_active: Materialized }` |
+| Freshness vs cost | Incremental view maintenance | `consistency: { daily_active: Eventual(1h) }` |
+| Durability vs latency | Durability levels | `durability: { todos: Committed }` |
+| Consistency vs latency | PACELC | `consistency: { todos: Session }` |
 | Behavior when offline | Local-first, merge rules | `offline App: writes allowed` |
 
 They fall into three kinds:
@@ -143,12 +142,15 @@ They fall into three kinds:
    budget.
 
 ```weft
-deploy prod {
-  consistency todos: session
-  durability todos: committed
-  budget toggle!:      p99 latency 50ms
-  budget daily_active: max $50/month
-  pin daily_active:    materialized
+prod = Deployment {
+  machines:    { server: Machine { platform: "weft/server-rust-postgres" } },
+  consistency: { todos: Session },
+  durability:  { todos: Committed },
+  budgets: {
+    toggle!:      Budget { p99_latency: 50ms },
+    daily_active: Budget { max_monthly_cost: 50 },
+  },
+  pins: { daily_active: Materialized },
 }
 ```
 

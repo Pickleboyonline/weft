@@ -14,7 +14,7 @@ Command output in this README is illustrative.
   rename and delete lists.
 - A panel for the selected list. You can add, rename, check off and delete
   items, filter by All / Active / Done, and clear the done ones.
-- Any number of browsers share the same lists, and they can work offline.
+- Any number of browsers share the same lists, stored on one server.
 
 ## Files
 
@@ -29,8 +29,8 @@ todo-lists/
     item.weft                record Item, table items (deleted with their list)
     filter.weft              Filter : [All, Active, Done]
   commands/
-    lists.weft               create_list!, rename_list!, delete_list!
-    items.weft               add_item!, rename_item!, set_done!, delete_item!, clear_done!
+    lists.weft               create_list, rename_list, delete_list
+    items.weft               add_item, rename_item, set_done, delete_item, clear_done
   queries/
     lists.weft               all_lists, find_list
     items.weft               keeps, items_in, and expects for keeps
@@ -57,9 +57,9 @@ todo-lists/
     small.weft               every order of 3 actions for 2 browsers
 ```
 
-There are no `command`, `query` or `check` keywords. A function in
-`commands/` that writes is a command, a read-only function in `queries/` is a
-query, and a `Bool` in `checks/` is a check.
+There are no `command`, `query` or `check` keywords. Remote functions are
+values: `Command(…)` in `commands/`, `Query(…)` in `queries/`, and invariants
+are `Check(…)` values in `checks/`. The folders are a convention.
 
 What's missing on purpose:
 - `deploy local`, which is generated;
@@ -72,11 +72,11 @@ one.
 
 ## What to look at
 
-### 1. `set_done!` instead of `toggle!`
+### 1. `set_done` instead of `toggle`
 
-The checkbox sends `set_done!(item.id, d)` with the checkbox's new value: what the person wants, not
+The checkbox sends `set_done(item.id, d)` with the checkbox's new value: what the person wants, not
 "flip it". If your phone and laptop both tick the same box, the item ends up
-done, which is what you both meant. With a `toggle!` it would flip twice and end
+done, which is what you both meant. With a `toggle` it would flip twice and end
 up not done. That's correct (it's what one machine would do with two toggles)
 but surprising.
 
@@ -99,49 +99,53 @@ On one machine this can't happen. The two commands run one after the other, in
 either order:
 
 - **Add, then delete:** "milk" is deleted along with the list.
-- **Delete, then add:** `add_item!` rejects with `NoSuchList` and the phone
+- **Delete, then add:** `add_item` fails with `NoSuchList` and the phone
   shows "That list was deleted."
 
 Either way, no item is left without a list. That's the `no_orphans` check in
 [checks/items.weft](checks/items.weft).
 
-Across devices, a naive backend gets it wrong. It checks that the list exists
-on the phone (where it did), then stores the item on the server without
-checking again. The compiler must instead re-run `add_item!`'s check on the
-server, ordered against any `delete_list!` of the same list. Nobody writes that
-ordering; the compiler sees that `add_item!` *reads* `lists` before it writes,
-and that `delete_list!` *deletes* from `lists`.
+A naive backend gets it wrong even with one database. Postgres defaults to
+Read Committed isolation, where `add_item`'s existence check can see the list
+while the laptop's delete is still uncommitted. Both commit, and "milk" is
+left in a list that no longer exists. weft promises that each command is
+atomic and runs as if alone, so the compiler must lower `add_item` to
+something that can't do this: a Serializable transaction retried on
+conflict, or an equivalent it can show is safe, such as a foreign key or a
+lock on the list row. Nobody writes that; the compiler sees that `add_item`
+*reads* `lists` before it writes, and that `delete_list` *deletes* from
+`lists`.
 
 If a lowering got this wrong, the simulator would report something like:
 
 ```
 $ weft simulate two_devices
-check no_orphans FAILED  (seed 1729; shrunk from 600 steps to 2)
-  browser 1: add_item!(Groceries, "milk")   list existed when checked on browser 1
-  browser 2: delete_list!(Groceries)        reached the server first
+check no_orphans FAILED (seed 1729; shrunk from 600 steps to 2)
+  browser 1: add_item(Groceries, "milk")   checked that Groceries exists
+  browser 2: delete_list(Groceries)        committed before add_item did
   server:    stored "milk" for Groceries, which no longer exists
-  allowed on one machine: "milk" deleted with the list, or add_item! rejects NoSuchList
+  allowed on one machine: "milk" deleted with the list, or add_item fails with NoSuchList
   replay:    weft simulate two_devices --seed 1729
 ```
 
-### 3. What each command needs across devices
+### 3. What the compiler adds to every command
 
-The compiler works this out from the code. Nothing in the source asks for it.
+Nothing in the source asks for any of this:
 
-| Command | What it does to the data | What the compiler adds |
-|---|---|---|
-| `create_list!`, `add_item!` (insert part) | Only adds rows | Nothing: inserts can arrive in any order and give the same result |
-| `add_item!` (existence check) | Reads `lists` before writing | Re-check on the server, ordered with deletes of that list |
-| `rename_list!`, `rename_item!`, `set_done!` | Overwrites a field | The server picks one order per row; every device ends up with the last write in that order |
-| `delete_list!`, `delete_item!`, `clear_done!` | Removes rows | Ordered with writes to the same rows; late writes to deleted rows are dropped or rejected |
-| All of them | | A request ID per click, so a retried request is applied once |
+| Added | Why |
+|---|---|
+| An endpoint, a typed client call, and argument validation | Client and server can't disagree on types, and bad input never reaches the command |
+| A request id, recorded in the same atomic run as the command's writes | A retried request (a double click, a dropped response) is applied once |
+| An atomic lowering: by default a Serializable transaction, retried on conflict | `add_item` reads `lists` and `delete_list` deletes from it, so they must not interleave. Cheaper forms are used only where the compiler can show they're equivalent |
+| A refresh of the queries that read what it wrote | After `add_item` writes `items`, every `items_in` and `all_lists` on screen updates, with nothing to invalidate by hand |
 
 ### 4. Queries that look slow but shouldn't be
 
 `all_lists()` counts open items separately for every list. Written by hand
-against a server, that's one query per list (the "N+1" problem). The compiler
-should turn it into a single grouped count, or, since `deploy prod` replicates
-both tables to the browser, compute it locally and update it as items change.
+against a server with an ORM, that's one query per list (the "N+1" problem).
+In weft it can't be: a table read is a language-integrated query, so the whole
+expression compiles to one query, a join with a grouped count. Code the
+compiler can't turn into one query is a compile error, not a slow fallback.
 
 ## What the compiler would produce
 
@@ -149,20 +153,20 @@ Illustrative output of the planned `weft explain` command:
 
 ```
 $ weft explain prod
-lists          Postgres table on server; replicated to every browser
-items          Postgres table on server, index on (list, created); replicated to every browser
-all_lists      computed in the browser from its copy; one grouped count, updated as items change
-items_in       computed in the browser from its copy
-create_list!   browser applies at once; server stores it            (insert only: no ordering)
-add_item!      browser applies at once; server re-checks the list   (ordered with delete_list! per list)
-set_done!      browser applies at once; server orders it per item
-delete_list!   browser applies at once; server orders it per list
-consistency    session: each browser sees its own changes immediately, others' after sync
+lists         Postgres table
+items         Postgres table, index on (list, created)
+all_lists     Query: 1 SQL query (lists left join items, grouped count); refreshed by writes to lists, items
+items_in      Query: 1 SQL query on items; refreshed by writes to items
+find_list     Query: 1 SQL query, by primary key; refreshed by writes to lists
+create_list   Command: one INSERT plus its request id, in one transaction
+add_item      Command: Serializable transaction, retried on conflict (reads lists, which delete_list deletes from)
+set_done      Command: one UPDATE plus its request id, in one transaction
+delete_list   Command: one DELETE (items deleted with it), plus its request id, in one transaction
 ```
 
 ```
 $ weft run local                 # one process, in memory: the reference
-$ weft simulate flaky_wifi       # 3 browsers, dropped messages, offline periods
+$ weft simulate flaky_wifi       # 3 browsers, dropped messages, periods without the server
 $ weft deploy prod
 ```
 
@@ -174,14 +178,23 @@ Each is a question for the project owner, not a decision.
 1. **One `problem` per component.** `ListPanel` shows rename errors and
    add-item errors through a single `problem` state, so a failed rename can
    replace the message from a failed add. Separate states work but repeat
-   themselves. A per-form error helper, or rejections shown next to the form
+   themselves. A per-form error helper, or failures shown next to the form
    that caused them, would fit better.
-2. **Users and authorization.** There are no users: everyone sees every list.
-   This is an open decision in [docs/language.md](../../docs/language.md), and
-   per-user lists are the natural next version of this example.
+2. **Users and authorization.** There are no users: everyone sees every list,
+   and anyone can call every command. This is an open decision in
+   [docs/language.md](../../docs/language.md), and per-user lists are the
+   natural next version of this example.
+3. **Changes wait for the server.** Adding an item shows it once the server
+   confirms and `items_in` refreshes. Showing it at once (an optimistic
+   update) belongs to the client cache design, which is still open.
+4. **No offline use.** The browsers need the server. Offline writes, and
+   keeping copies of `lists` and `items` in each browser, are part of the
+   distribution design, deliberately left open.
 
 Settled by the reference since earlier versions of this example: the table
 API, updating a missing row (a no-op), references between tables (`Id(T)` and
 `delete_with`), ids in URLs (an opaque 26-character token), the not-found page
-(`ui/pages/404.weft`), and navigating after a command that can reject (use
-`then`, as the sidebar does after `create_list!`).
+(`ui/pages/404.weft`), navigating after a command that can fail (`.await`
+its result and `match` it, as the sidebar does after `create_list`), effects (inferred, never
+written), failures (commands return `Err`), checks (`Check` values), and
+remote functions (`Query` and `Command` values).

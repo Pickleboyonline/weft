@@ -13,30 +13,31 @@ const ideas = [
     body: 'Write data, commands, queries and the UI as if everything ran on one machine. That program is what everything else is checked against.',
   },
   {
-    title: 'Where it runs is a separate file',
-    body: 'Files in deploy/ say which machines exist, where each table lives and how fresh each screen must be. The logic stays the same.',
+    title: 'Remote functions with guarantees',
+    body: 'The client calls the server through Query and Command values. Calls are typed and validated, writes refresh the screens that read them, retries apply once, and commands are atomic.',
   },
   {
     title: 'A simulator checks the rest',
-    body: 'Many clients, dropped messages and offline devices, run deterministically and compared with the one-machine program. A failure comes with a seed that replays it.',
+    body: 'Many clients against one server, with dropped messages, delays and crashes, run deterministically and compared with the one-machine program. A failure comes with a seed that replays it.',
   },
 ];
 
-const sample = `add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
-add_item! = |list, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  if not lists.has(list) { reject NoSuchList }   # deleted on another device?
-  items.insert!(Item { list, title: cleaned })
-}
+const sample = `add_item = Command(|list: Id(TodoList), title: Text| -> Result(Id(Item), [EmptyTitle, NoSuchList]) {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  if not lists.has(list) { return Err(NoSuchList) }   // deleted on another device?
+  Ok(items.insert(Item { list, title: cleaned }))
+})
 
-items_in = |list, show| items
-  .filter(|i| i.list == list and keeps(show, i))
-  .sort_by(.created)`;
+items_in = Query(|list: Id(TodoList), show: Filter| -> List(Item) {
+  items
+    .filter(|i| i.list == list and keeps(show, i))
+    .sort_by(.created)
+})`;
 
 export default function Home(): ReactNode {
   return (
-    <Layout description="weft: write a system once, as if it ran on one machine; a compiler builds and checks the distributed version.">
+    <Layout description="weft: write a system once, as if it ran on one machine; a compiler builds the server and clients and checks them against it.">
       <header className={styles.hero}>
         <div className={styles.heroInner}>
           <ThemedImage
@@ -50,8 +51,8 @@ export default function Home(): ReactNode {
           <h1 className={styles.title}>One program. Woven together.</h1>
           <p className={styles.subtitle}>
             weft is a design for a language where you write a system once, as if it ran on one
-            machine, and a compiler builds the distributed version (server, browser clients,
-            storage, sync) and checks it against what you wrote.
+            machine, and a compiler builds the running version (a server with its database,
+            browser clients, the typed calls between them) and checks it against what you wrote.
           </p>
           <p className={styles.status}>A design in progress: nothing compiles yet.</p>
           <div className={styles.buttons}>
@@ -76,9 +77,10 @@ export default function Home(): ReactNode {
         <section className={styles.sample}>
           <h2>What it looks like</h2>
           <p>
-            A command and a query from the todo-lists example. No routes, no fetch calls, no SQL:
-            the <code>!</code> marks what changes the world, and <code>reject</code> reasons become
-            part of the command's type.
+            A command and a query from the todo-lists example: the client calls both as if they
+            were local. No routes, no fetch calls, no SQL: the compiler infers what each function
+            reads and writes, the query compiles to one database query, and the reasons a command
+            can fail are part of its type.
           </p>
           <CodeBlock language="weft" title="commands/items.weft, queries/items.weft">
             {sample}

@@ -1,4 +1,4 @@
-# Reads of `items` that the client uses.
+// Reads of `items` that the client uses.
 
 keeps = |show, i| match show {
   All    -> True
@@ -9,6 +9,8 @@ keeps = |show, i| match show {
 expect keeps(Active, { done: True }) == False
 expect keeps(Done, { done: True })
 
-items_in = |list, show| items
-  .filter(|i| i.list == list and keeps(show, i))
-  .sort_by(.created)
+items_in = Query(|list: Id(TodoList), show: Filter| -> List(Item) {
+  items
+    .filter(|i| i.list == list and keeps(show, i))
+    .sort_by(.created)
+})

@@ -1,5 +1,5 @@
-## The client's root component: a sidebar beside the current page. `outlet` is
-## where the page goes. Which list is open lives in the URL (ui/pages/).
+/// The client's root component: a sidebar beside the current page. `outlet` is
+/// where the page goes. Which list is open lives in the URL (ui/pages/).
 component App {
   view = main {
     Sidebar

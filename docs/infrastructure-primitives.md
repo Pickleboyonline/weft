@@ -71,7 +71,7 @@ Most of what decides these choices is visible in the program, much as XLA
 reads tensor shapes from a program. An analytics table added to the todo app:
 
 ```weft
-events = Table(Event)                    # only ever insert!-ed
+events = Table(Event)                    // only ever insert-ed
 
 daily_active = || events
   .group_by(|e| e.at.date())
@@ -80,7 +80,7 @@ daily_active = || events
 
 | Signal in the code | What the compiler concludes |
 |---|---|
-| Only `insert!` is ever called on `events` | Append-only: no in-place updates, so LSM or columnar storage is fine |
+| Only `insert` is ever called on `events` | Append-only: no in-place updates, so LSM or columnar storage is fine |
 | Queries group by a time field | Partition by time |
 | A query aggregates over a range | Maintain it incrementally, as a daily rollup |
 | No query reads old events individually | Old partitions can move to cheap storage |
@@ -107,7 +107,7 @@ platforms provide, satisfying the program's behavior annotations and budgets.
 ```
 $ weft explain prod
 events          Postgres, partitioned by day; partitions older than 30 days tiered to S3 (Parquet)
-daily_active    incremental rollup table, updated per insert batch
+daily_active   incremental rollup table, updated per insert batch
 todos           Postgres rows, B-tree on (owner, created); replicated to browser
 ```
 
@@ -147,7 +147,7 @@ prod = Deployment {
   consistency: { todos: Session },
   durability:  { todos: Committed },
   budgets: {
-    toggle!:      Budget { p99_latency: 50ms },
+    toggle:      Budget { p99_latency: 50ms },
     daily_active: Budget { max_monthly_cost: 50 },
   },
   pins: { daily_active: Materialized },

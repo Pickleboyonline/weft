@@ -20,7 +20,7 @@ same intermediate representation, so the decision can be made later, or both
 can exist.
 
 **For a new language:**
-- Effects, purity and rejections can be enforced by the type system, not by
+- Effects, purity and failures can be enforced by the type system, not by
   convention and lint rules.
 - Client code, server logic and deployment share one coherent syntax.
 - weft is a personal tool, and enjoying the language you write every day
@@ -38,24 +38,29 @@ can exist.
 
 ## Why doesn't weft decide where code runs?
 
-**By design.** Placement is a deployment's `placement` field, with
-conventional defaults. Choosing it automatically needs a cost model and real
-usage data, and a wrong automatic choice is hard to debug. Hydro, the closest
-research project, made the same call and ships explicit placement. The
-compiler does *suggest* placements, through `weft explain`, but never applies
-one silently.
+**Not decided.** Today there's one answer, so there's nothing to choose:
+shared tables, queries, commands and jobs run on the server, and components
+on the clients. A helper runs wherever its callers do, and one that reads a
+server table can only run on the server.
+
+Placing data anywhere else (on several servers, or as copies on clients) is
+the distribution question, which is deliberately open. Choosing placement
+automatically would need a cost model and real usage data, and a wrong
+automatic choice is hard to debug; Hydro, the closest research project, ships
+explicit placement. See [the language design](/design/language).
 
 ## Why can't the client call the server directly?
 
-**It does, but the call is sent, not run.** In a handler,
-`add_todo!(draft)` sends the command once the handler finishes; it doesn't
-block in the middle. Underneath, handlers compile to pure functions that
-return commands as values, as in Elm.
+**It does, but the call is sent, not run.** In a handler, `add_todo(draft)`
+sends the command to the server, and `.await` waits for its result. Other
+handlers keep running meanwhile. Underneath, handlers compile to state
+transitions that return commands as values, as in Elm.
 
 The cost is one rule to learn. In return, every effect is visible to the
-compiler and the simulator, optimistic updates come for free (the command can
-run against the client's local copy first), and a handler can be tested
-without a network.
+compiler and the simulator, and a handler can be tested without a network.
+The screen updates when the server confirms. Showing a change before that
+(an optimistic update) is part of the client cache design, which is still
+open.
 
 ## Why not write clients the way Elm does?
 
@@ -77,19 +82,23 @@ source is spread out.
 
 ## Why are there no `command` or `query` keywords?
 
-**By design.** What a function does is already in its effects: one that writes
-`items` can only run where `items` lives, as a transaction. Its folder says
-the rest: `commands/` holds what clients may call, `queries/` what views may
-read. A keyword would repeat what the compiler already knows, and every new
-concept (jobs, webhooks) would need another one. The editor and
-`weft explain` show each function's role.
+**By design.** Queries and commands are values, `Query(…)` and `Command(…)`,
+like `Table(…)` and `Job { … }`. A keyword per concept would grow the language
+with every new kind of thing (jobs, webhooks), and an earlier draft had over
+40 of them.
+
+They are explicit, though. Two later drafts inferred them from effects and
+use: a function a handler calls that writes was a command. That was dropped,
+because queries and commands are the boundary between client and server: the
+app's API, where validation and compatibility live, and the one place a
+reader most needs to see. `weft explain api` lists them all.
 
 ## Why can't a query write?
 
-**By design.** Queries are recomputed whenever their data changes, and clients
-subscribe to them. A write inside one would run an unpredictable number of
-times, on unpredictable machines. A function in `queries/` that writes is a
-compile error.
+**By design.** A query is re-run whenever a command writes a table it reads,
+and its results are cached and shared by every component that calls it with
+the same arguments. A write inside one would run an unpredictable number of
+times. A `Query` that writes is a compile error.
 
 ## Why are server reads called queries, not views?
 
@@ -103,47 +112,50 @@ server data, and `view` means markup.
 **By design.** The compiler sees the whole program, so the layout can't change
 what a program means. A fixed layout makes every project predictable, for
 people, AI agents and generators alike, and lets conventions supply defaults:
-the reference deployment is generated, tables go on the server, the client
-goes on the browser. `weft explain` shows every default it applied, so nothing
-is hidden.
+the reference deployment is generated, and a file's path under `ui/pages/` is
+its URL. `weft explain` shows every default it applied, so nothing is hidden.
 
 ## Why no exceptions?
 
-**By design.** A command fails with `reject` and a tagged reason
-(`reject EmptyTitle`). The reasons are part of the command's type, and a
-client that calls it must handle them (`add_todo!(…) else |err| …`); the
-compiler checks that it does.
+**By design.** Failures are values, as in Roc. A command that can fail
+returns a `Result` with a tagged reason (`return Err(EmptyTitle)`), and
+returning `Err` also undoes everything it wrote. The reasons are part of the
+command's type, and a client that calls it must handle them
+(`add_todo(…).await.on_err(|err| …)`); the compiler checks that it does.
 
 The cost is more handling code. In return, failures can't surprise the UI, and
-adding a new rejection reason flags every place that has to deal with it.
+adding a new failure reason flags every place that has to deal with it.
 
-## Why doesn't weft guarantee everything behaves exactly like one machine?
+## Why doesn't weft work offline?
 
-**Because it can't.** With offline writes, some invariants (uniqueness, limits,
-references between tables) can only be guaranteed if devices coordinate first.
-That's a theorem, not a missing feature. weft promises to say which
-invariants are affected and make you choose how to handle them. See
-[The promise and its limits](promise).
+**Not decided.** With one server, every command is atomic and runs as if
+alone, so the server's data always matches some one-machine run. Offline
+writes break that: two devices can each do something fine alone but wrong
+together, and some invariants (uniqueness, limits, references between
+tables) can only be kept if devices coordinate first. That's a theorem, not a
+missing feature. Rather than pick an answer before its consequences are
+worked out, weft leaves copies of data on clients, offline writes and
+consistency levels open. See [The promise and its limits](promise) and
+[the language design](/design/language).
 
-## Why are a server and browsers the default?
+## Why only one server and browsers?
 
-**By design.** It's the most common shape for a CRUD app, so conventions
-assume it: tables go on the machine named `server`, the client on `browser`.
-Any other topology (several regions, edge nodes, devices that sync
-peer-to-peer) is a different `machines` record and `placement`; the program
-doesn't change. Multitier languages that hard-coded client and server couldn't
-grow past it, which is why weft's topology is configuration, not grammar.
+**By design, for now.** It's the most common shape for a CRUD app, and the one
+whose guarantees can be stated and checked today. The machines are still a
+record in a `Deployment`, not grammar: multitier languages that hard-coded
+client and server couldn't grow past it. Other shapes (several regions, edge
+nodes, devices that sync peer-to-peer) need the distribution design, which is
+open.
 
 ## Why not use CRDTs for everything?
 
-**By design: replay by default, merge rules by choice.** A CRDT (a data type
-whose concurrent changes always merge) guarantees that copies converge, but
-convergence isn't the same as correctness. A merge can produce data your
-commands would never have produced on one machine. By default, weft replays a
-client's pending commands on top of the server's data, which keeps the
-one-machine meaning. A table field can opt in to a merge rule (`Latest`,
-`Union`, `Sum`, …) when convergence is what you want, and the compiler flags
-checks that depend on merged fields.
+**Not decided.** A CRDT (a data type whose concurrent changes always merge)
+guarantees that copies converge, but convergence isn't the same as
+correctness. A merge can produce data your commands would never have produced
+on one machine. In the current design, clients keep no copies of shared
+data, so nothing needs merging. An earlier draft proposed replaying a client's pending commands on
+the server by default, with merge rules as an opt-in. It isn't part of the
+language: see open decision 4 in [the language design](/design/language).
 
 ## Why isn't there a weft editor?
 

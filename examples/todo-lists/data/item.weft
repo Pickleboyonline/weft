@@ -1,11 +1,11 @@
-## One item on a list.
+/// One item on a list.
 record Item {
-  key id:  Id(Item)     = new_id!()
+  key id:  Id(Item) = new_id()
   list:    Id(TodoList)
   title:   Text
-  done:    Bool = False
-  created: Time = now!()
+  done:    Bool     = False
+  created: Time     = now()
 }
 
-## Deleting a list deletes its items.
+/// Deleting a list deletes its items.
 items = Table(Item, delete_with: { list: lists })

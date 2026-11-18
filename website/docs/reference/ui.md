@@ -6,7 +6,12 @@ description: Components, state, handlers, markup, styling, pages and routing.
 # UI
 
 A weft client is a tree of **components**. Each one has its own state, the
-functions that change it, its markup, and its styles.
+functions that change it, its markup, and its styles. A few general
+constructs cover everything else a client needs: waiting with `.await`, work
+tied to a component's life with `task`, handles to elements on screen,
+reusable stateful functions, and platform modules for the outside world. Data
+from another service, a live socket, or a canvas widget is ordinary weft code
+built from these, not a special case.
 
 ## Components
 
@@ -23,11 +28,11 @@ component ItemRow(item: Item) {
 
   save = || {
     editing = False
-    rename_item!(item.id, draft) else |err| problem = err
+    rename_item(item.id, draft).await.on_err(|err| problem = err)
   }
 
   view = li {
-    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
+    checkbox(checked: item.done, on_change: |d| set_done(item.id, d))
     if editing {
       form(on_submit: save) {
         input(bind: draft)
@@ -54,7 +59,7 @@ component ItemRow(item: Item) {
 - One component per file, in `ui/components/`, named after it. Pages and the
   client root follow the same form (see [Pages](#pages-and-routes)).
 - A component's body holds, in any order: `state` declarations, ordinary
-  bindings, handlers, one `view`, and an optional `style`.
+  bindings, handlers, [tasks](#tasks), one `view`, and an optional `style`.
 
 ## State
 
@@ -63,12 +68,13 @@ component and can change.
 
 - **Its type is inferred.** `state problem = None` above gets the type
   `[None, EmptyTitle]` from the assignment `problem = err`, because
-  `rename_item!` rejects with `EmptyTitle`. Annotate it when inference can't
+  `rename_item` can fail with `EmptyTitle`. Annotate it when inference can't
   tell: `state selected: Option(Id(Item)) = None`.
 - **Only this component's functions can assign it,** with plain `=`. Assigning
   it in `view`, or in a binding that isn't a function, is a compile error.
-- **State must be data:** records, tags, lists and the like. It can't hold
-  functions. So it can always be logged, replayed and kept across a reload.
+- **State must be data:** records, tags, lists, and opaque handles such as an
+  [`Element`](#element-handles) or a socket. It can't hold functions. So it
+  can always be logged, replayed and kept across a reload.
 - **Each instance has its own.** Two `ItemRow`s have separate `editing` states.
   In a loop, the key decides which state belongs to which row
   ([loops](#loops)).
@@ -76,15 +82,16 @@ component and can change.
 ## Derived values
 
 Any ordinary binding in a component that reads state, parameters or queries
-is recomputed whenever they change:
+is recomputed whenever they change. These bindings, and `view`, may read
+tables and queries but not change anything (see
+[Effects](effects#where-effects-are-allowed)):
 
 ```weft
 remaining = items_in(list.id, All).count_if(|i| not i.done)
 label = if remaining == 1 { "1 item left" } else { "${remaining} items left" }
 ```
 
-Nothing has to be declared as "derived": weft is pure, so every such binding
-already is.
+Nothing has to be declared as "derived".
 
 ## Handlers
 
@@ -93,11 +100,13 @@ state. It runs in response to an event.
 
 - Named: `edit = || { … }`, then `on_click: edit`.
 - Inline: `on_click: || editing = False`.
-- With an event value: `on_change: |d| set_done!(item.id, d)` receives the
+- With an event value: `on_change: |d| set_done(item.id, d)` receives the
   checkbox's new `Bool`.
 
-Handlers are the only way state changes. Each one runs to completion before
-the next event, so a handler never sees half of another one's changes.
+Handlers and [tasks](#tasks) are the only way state changes. A handler runs
+without interruption until it finishes or reaches an
+[`.await`](#waiting-await), so it never sees half of another handler's
+changes. While it waits, other handlers can run.
 
 What it compiles to: every handler, named or inline, becomes a message, and
 all of a component's assignments become one pure update function: the Elm
@@ -105,8 +114,8 @@ Architecture. That's what lets the simulator replay any run.
 
 ### Calling commands
 
-Inside a handler, calling a `!` command sends it once the handler finishes.
-`then` and `else` attach handlers for its result. See
+Inside a handler, calling a command sends it. Adding `.await` waits for the
+server's result. See
 [Commands and queries](commands-and-queries#calling-commands-from-a-client).
 
 ### Passing handlers to children
@@ -125,6 +134,171 @@ component Picker(options: List(Text), on_pick: Action(Text)) {
 The parent passes one of its own handlers: `Picker(options: names, on_pick:
 |n| chosen = n)`. `Action` is the type of a handler with no value, and
 `Action(a)` of one that receives an `a`.
+
+## Waiting: `.await`
+
+Some calls take time: a command's result from the server, a request to
+another service, a timer, the next message on a socket. Calling one starts it.
+`.await` after the call waits for its value:
+
+```weft
+create = || {
+  problem = None
+  let pending = name
+  name = ""
+  match create_list(pending).await {
+    Ok(id)   -> go(ListPage(id: id))
+    Err(err) -> problem = err
+  }
+}
+```
+
+- **Without `.await`, a call that takes time gives a `Pending(a)`,** which can
+  be awaited later. That's how to start two things at once:
+  `a = http.get(x)`, `b = http.get(y)`, then `a.await` and `b.await`.
+- **A function that uses `.await` takes time too,** so calling it needs
+  `.await` to get its value.
+- **`.await` is the one place where other code can run in between.** State
+  read before it may have changed after it, and later reads see a newer
+  [snapshot](effects#snapshots). That's why it's written, while effects
+  aren't: it's control flow, like `return`.
+- **A `Result` can't be ignored.** Calling a command that can fail without
+  waiting for it and handling its result is a compile error. `.on_err(f)` is
+  the short form when only the failure matters:
+  `rename_item(id, draft).await.on_err(|err| problem = err)`.
+- **`.await` works in handlers, tasks, stateful functions, jobs and
+  endpoints.** Commands, queries, views and checks can't wait: they run
+  atomically, or as functions of one snapshot.
+- If the component goes away while a handler is waiting, the handler is
+  cancelled. A command it sent still runs on the server.
+- In a simulation, the simulator decides when each awaited call finishes, so
+  it explores the orders in which handlers can interleave.
+
+## Tasks
+
+A **task** is work tied to a component's life. It starts when the component
+appears and is cancelled when the component goes away. Use one for anything
+that runs over time: a timer, a live connection, loading data from another
+service.
+
+```weft
+component Prices(symbol: Text) {
+  state latest = None
+
+  task(key: symbol) {
+    let socket = ws.connect("wss://prices.example.com/${symbol}").await
+    defer { socket.close() }
+    while True {
+      match socket.receive().await {
+        Ok(msg) -> msg.decode(Quote).on_ok(|q| latest = Some(q))
+        Err(_)  -> break
+      }
+    }
+  }
+
+  view = match latest {
+    None    -> p { "Connecting…" }
+    Some(q) -> p { "${symbol}: ${q.price}" }
+  }
+}
+```
+
+- **`task { … }`** runs once each time the component appears.
+  **`task(key: value) { … }`** also restarts whenever `value` changes: the
+  running task is cancelled first. A task never restarts by itself because of
+  state it reads or assigns.
+- **Cancellation** happens at an `.await`. `defer { … }` runs its block when
+  the enclosing block ends, whether normally, by an error, or by
+  cancellation (see [Control flow](control-flow#defer)). There's nothing to
+  unsubscribe by hand.
+- A component can have several tasks. Like handlers, a task assigns its
+  component's state, and runs uninterrupted between `.await`s.
+
+## Element handles
+
+`ref: name` on an element puts a handle to it in a state of type
+`Option(Element)` once it's on screen, for focusing, measuring, scrolling or
+drawing:
+
+```weft
+component Search {
+  state query = ""
+  state box: Option(Element) = None
+
+  task { box.map(|b| b.focus()) }
+
+  view = input(ref: box, bind: query, placeholder: "Search")
+}
+```
+
+An `Element` is an opaque handle, like an `Id`: data that can be compared and
+stored in state. What it can do (focus, size, scroll, a 2D or WebGL drawing
+context) comes from the platform's `dom` module (see
+[Standard library](stdlib#platform-modules)). In a simulation it's a stand-in
+that records what was done to it.
+
+## Stateful functions
+
+A function whose body declares `state` or `task` is a **stateful function**:
+reusable logic with its own state, like a custom hook in React. The state
+belongs to the component that calls it, and each call has its own.
+
+```weft
+/// Load `key` with `load`, and reload it every `fresh_for`.
+remote = |key, load, fresh_for| {
+  state result = Loading
+  task(key: key) {
+    while True {
+      result = match load(key).await {
+        Ok(v)  -> Ready(v)
+        Err(e) -> Failed(e)
+      }
+      sleep(fresh_for).await
+    }
+  }
+  result
+}
+
+component Weather(city: Text) {
+  forecast = remote(city, |c| http.get("https://api.example.com/w/${c}").await?.decode(Forecast), 10min)
+
+  view = match forecast {
+    Loading   -> p { "…" }
+    Ready(f)  -> p { f.summary }
+    Failed(_) -> p { "Forecast unavailable" }
+  }
+}
+```
+
+- A stateful function is called at the top level of a component's body, or of
+  another stateful function: never inside an `if`, a loop or a lambda. That
+  way each call keeps the same state from one render to the next. Calling one
+  anywhere else is a compile error.
+- Libraries are built this way. A caching layer with a cache shared across
+  components (in a [`Memory` table](data#options)), deduplicated requests,
+  refresh on focus and reconnect, and paging is a stateful function and a
+  table, written in weft.
+
+## Data from outside the app
+
+Tables and queries cover the app's own data. For everything else, each
+platform provides modules of ordinary functions: `http`, `ws`, `sleep`, `dom`
+and `browser` on the client, and `http`, `sleep` and `secrets` on the server
+(see [Standard library: platform modules](stdlib#platform-modules)). Their
+effects are inferred like any other.
+
+- **Data from other services isn't part of the app's state.** The simulator
+  treats each response as input from outside, drawn from the simulation's
+  [models](deployment#simulations), not as something the one-machine run must
+  reproduce.
+- **Commands can't call the outside world.** A command is atomic and may run
+  twice, so a request in the middle of one can't be undone or repeated
+  safely. Call the service from a handler or task and pass the result to a
+  command, or use a [job](resources#jobs) that watches a query.
+- **Existing host libraries,** such as a JavaScript charting library, can be
+  used through an [extern](resources#externs). That's rarely needed: the
+  platform modules cover the outside world, and the constructs above cover
+  the rest.
 
 ## Markup
 
@@ -157,6 +331,7 @@ view = section(class: "list") {
 |---|---|---|
 | `on_click`, `on_submit`, … | a handler | `on_input` passes `Text`, `on_change` on a checkbox passes `Bool`, `on_key` passes a `Key` |
 | `bind` | a `state` | two-way: the element shows the state and updates it as the person types or clicks |
+| `ref` | a `state` of type `Option(Element)` | set to a handle to the element while it's on screen; see [Element handles](#element-handles) |
 | `class` | a `Text`, or a record of `Bool`s | `class: { done: item.done, urgent: item.urgent }` applies each class whose value is `True` |
 | `key` | any value with equality | identifies an element in a loop; see [Loops](#loops) |
 | everything else | its HTML type | `placeholder: "…"`, `disabled: True` |
@@ -172,7 +347,7 @@ view = div {
     Loading      -> p { "Loading…" }
     Failed(why)  -> p(class: "error") { why }
     Ready(rows)  -> ItemList(items: rows)
-    Stale(rows)  -> ItemList(items: rows)
+    Refreshing(rows) -> ItemList(items: rows)
   }
 }
 ```
@@ -191,19 +366,24 @@ ul {
   keyed by it automatically. Anything else is keyed by its value, or by a
   `key:` attribute on the child: `li(key: row.list.id) { … }`.
 
-## Loading and offline states
+## Loading states
 
-Reading a query in a view gives its last known value: what the client has
-synced so far. Before the first value arrives, the component shows nothing.
+Calling a query in a view gives its latest result (see
+[Using a query in a component](commands-and-queries#using-a-query-in-a-component)).
+A component isn't shown until every query it calls has a first result, so a
+result never means "not loaded yet". After that, while a refresh is on its
+way, the previous result stays on screen.
 
-To show loading, offline or failure states, wrap the query in `status`:
+To show loading, refreshing or failure states, wrap the call in `status`. A
+query read through `status` doesn't hold the component back: it reports
+`Loading` instead.
 
 | `status(q)` is | When |
 |---|---|
-| `Loading` | no value yet |
-| `Ready(value)` | in sync with the server |
-| `Stale(value)` | offline, or behind; showing the last known value |
-| `Failed(reason)` | the query hit a [runtime error](runtime-errors) |
+| `Loading` | no result yet |
+| `Ready(value)` | the latest result, with no refresh in flight |
+| `Refreshing(value)` | showing the previous result while a new one is on its way |
+| `Failed(reason)` | the query failed: a [runtime error](runtime-errors), or the server couldn't be reached |
 
 ## Styling
 
@@ -233,7 +413,7 @@ To show loading, offline or failure states, wrap the query in `status`:
   component ListPage(id: Id(TodoList), show: Filter = All) {
     view = match find_list(id) {
       None       -> p { "This list was deleted on another device" }
-      Some(list) -> ListPanel(list: list, show: show)
+      Some(list) -> ListPanel(list: list, start: show)
     }
   }
   ```
@@ -258,7 +438,8 @@ To show loading, offline or failure states, wrap the query in `status`:
   route value:
   - `link(to: ListPage(id: list.id)) { list.name }` renders a link. A link to
     the current page is marked as current.
-  - `go(Home)` in a handler navigates once the handler finishes.
+  - `go(Home)` in a handler or task navigates once it finishes or reaches an
+    `.await`.
 
   A link to a page that doesn't exist, or with the wrong parameters, is a
   compile error.

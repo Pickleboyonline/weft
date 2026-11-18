@@ -1,5 +1,5 @@
-## One item: a checkbox, its title (click to edit), and a delete button. Each
-## row keeps its own editing state, keyed by the item's id.
+/// One item: a checkbox, its title (click to edit), and a delete button. Each
+/// row keeps its own editing state, keyed by the item's id.
 component ItemRow(item: Item) {
   state editing = False
   state draft   = ""
@@ -12,12 +12,12 @@ component ItemRow(item: Item) {
 
   save = || {
     editing = False
-    rename_item!(item.id, draft) else |err| problem = err
+    rename_item(item.id, draft).await.on_err(|err| problem = err)
   }
 
   view = li {
-    # The click carries the value the person wants, not "flip it".
-    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
+    // The click carries the value the person wants, not "flip it".
+    checkbox(checked: item.done, on_change: |d| set_done(item.id, d))
     if editing {
       form(on_submit: save) {
         input(bind: draft)
@@ -30,7 +30,7 @@ component ItemRow(item: Item) {
       None       -> nothing
       EmptyTitle -> p(class: "error") { "An item needs a title" }
     }
-    button(on_click: || delete_item!(item.id)) { "Delete" }
+    button(on_click: || delete_item(item.id)) { "Delete" }
   }
 
   style {

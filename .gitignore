@@ -9,3 +9,6 @@
 /editors/vscode/node_modules/
 /editors/vscode/out/
 /editors/vscode/*.vsix
+
+# Rust build output
+/target/

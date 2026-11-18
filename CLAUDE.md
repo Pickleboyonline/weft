@@ -20,21 +20,51 @@ checks could be verified (simulation, model checking, proof):
 [docs/testing-and-proof.md](docs/testing-and-proof.md).
 
 Design the whole language at once: don't split features into "v1" and "later".
+The one deliberate exception is distribution (placement, replication, client
+copies of data, offline sync, consistency levels): it's an open question in
+docs/language.md section 8. Don't add it to the reference, and don't make
+guarantees that depend on the compiler inferring it. The fixed shape is one
+server with a database, plus clients.
 
 Key rules that are easy to get wrong:
 - No `command`, `query`, `check`, `table`, `client`, `page` or `action`
-  keywords. A function's role comes from its effects and folder; tables,
-  externs, jobs, deployments and simulations are values (`items = Table(Item)`,
-  `prod = Deployment { … }`).
+  keywords. Remote functions are explicit values, `Query(|…| …)` and
+  `Command(|…| …)`, with typed parameters and results; tables, checks,
+  externs, jobs, deployments and simulations are values too
+  (`items = Table(Item)`, `no_orphans = Check(|| …)`,
+  `prod = Deployment { … }`). Folders are a convention, never semantics.
+- Effects are Koka-style: inferred, never written. No `!` on names, no `=>`,
+  no effect rows. Commands fail by returning `Err`; there's no `reject`.
+- Table reads are language-integrated queries with a guarantee: one query per
+  level of nesting, or a compile error. No silent in-memory fallback. Shared
+  tables are server-only; clients reach them through queries and commands.
 - Configuration is records and named arguments with ordinary values, never
   English-like phrases.
+- Local bindings are `let x = …`, variables `let mut x = …`; shadowing is
+  allowed. Plain `x = …` in a block is an assignment (to a `let mut` or a
+  `state`); at the top level and for members it's a definition. No `var`.
 - Components are Svelte-style: `state`, plain `=` assignment in handler
-  functions, `view = …` markup, scoped `style { … }`.
+  functions, `view = …` markup, scoped `style { … }`. Beyond that, clients use
+  general constructs, not special cases: postfix `.await` (no `then`/`else`),
+  `task(key: …) { … }` with `defer`, `ref:` element handles, stateful
+  functions, `Table(…, scope: Device | Memory)`, and platform modules (`http`,
+  `ws`, `dom`, `browser`). Externs are for host libraries only.
 
 `examples/` holds weft projects written in the designed syntax, starting with
 [examples/todo-lists](examples/todo-lists/README.md). Nothing compiles yet:
 they're design artifacts, and each README lists the gaps it exposed. Projects
 follow the conventional layout on the reference's Projects page.
+
+[tree-sitter-weft](tree-sitter-weft/README.md) is the grammar's executable
+form and `crates/` is the checker (`weft check`, `weft explain effects|api`,
+`weft explain <code>`, `weft fmt`, `weft doctest`). It parses and checks; it never generates code. When the
+language changes, change the reference, then `grammar.js` (`make grammar`
+fails on any ambiguity: resolve it explicitly, never with a declared
+conflict, and record it in its README), then the checker. `make test` runs
+everything: the checker's tests, the example project, every ```` ```weft ````
+block in the docs (lines marked `// error:` must fail; all others must
+pass), `weft fmt --check` on the example, and the highlighting tests. A new
+diagnostic code needs an entry in `crates/weft-check/src/explain.rs`.
 
 [editors/vscode](editors/vscode/README.md) is a VS Code extension that
 highlights `.weft` files and ```` ```weft ```` blocks in Markdown. When the

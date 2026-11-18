@@ -18,7 +18,9 @@ keeps = |show, i| match show {
 ```
 
 A **signature** on the line before gives its type. It's optional except where
-[Types: annotations](types#annotations) requires it:
+[Types: annotations](types#annotations) requires it. A lambda can also
+annotate its parameters and result inline, as commands and queries do:
+`|list: Id(TodoList), title: Text| -> Result(…) { … }`.
 
 ```weft
 keeps : Filter, Item -> Bool
@@ -34,29 +36,36 @@ their definition.
 
 ## What a function is
 
-There's no keyword for "command" or "query". A function's role follows from
-two things the compiler already knows: what it touches (its
-[effects](effects)) and which folder it's in.
+There's no keyword for "command" or "query". Most functions are just
+functions; the few with a special role are wrapped in a standard-library
+value that says so, the way a table is a `Table(…)`.
 
-| A function that… | in… | is a… | which means |
-|---|---|---|---|
-| writes tables | `commands/` | **command** | clients can call it; it runs as a transaction. See [Commands](commands-and-queries#commands). |
-| only reads tables | `queries/` | **query** | views can read it, and stay in sync. See [Queries](commands-and-queries#queries). |
-| is `Bool`, reads tables | `checks/` | **check** | the simulator keeps it true. See [Checks](checks-and-tests). |
-| changes component state | a `component` | **handler** | it runs in response to an event. See [UI](ui#handlers). |
-| anything else | anywhere | **helper** | an ordinary function, callable from the others |
+| A function… | is a… | which means |
+|---|---|---|
+| wrapped in `Command(…)` | **command** | a remote function the client calls to change data: atomic, and part of the API. See [Commands](commands-and-queries#commands). |
+| wrapped in `Query(…)` | **query** | a remote function the client calls to read data. See [Queries](commands-and-queries#queries). |
+| wrapped in `Check(…)` | **check** | an invariant the simulator keeps true. See [Checks](checks-and-tests). |
+| in a component, that assigns its state | **handler** | it runs in response to an event. See [UI](ui#handlers). |
+| that declares `state` or `task` | **stateful function** | reusable logic whose state belongs to the component calling it. See [UI](ui#stateful-functions). |
+| anything else | **helper** | an ordinary function, callable from the others |
 
-A function in `commands/` that doesn't write anything, or one in `queries/`
-that writes, is a compile error.
+- Commands and queries are explicit because they're the boundary between
+  client and server: the app's API, and where security and compatibility
+  matter. `weft explain api` lists them.
+- Where every other function runs (client, server, or both) follows from
+  what it references (see
+  [Server-only code](commands-and-queries#server-only-code)).
+- Folders are a convention for finding things (see
+  [Projects](projects#layout)). Moving a function to another folder never
+  changes what it does.
 
 ## Purity
 
-- A function without `!` in its name is **pure**: same arguments, same result,
-  and no effect on anything outside it. It may read tables (those reads are
-  tracked: see [Effects](effects#reactive-reads)).
-- A function whose name ends in `!` may change the world. Only `!` functions
-  can call `!` functions, with one exception: component handlers, where a call
-  to a `!` function is *sent* rather than run (see [UI](ui#calling-commands)).
+- A function with no effects is **pure**: same arguments, same result, and no
+  effect on anything outside it.
+- Nothing in a function's name or type says whether it's pure. The compiler
+  infers it, your editor shows it, and the compiler reports an error where an
+  effect isn't allowed (see [Effects](effects#where-effects-are-allowed)).
 
 ## Methods
 
@@ -69,7 +78,7 @@ record Money {
   currency: Currency
 
   plus    = |a, b| Money { cents: a.cents + b.cents, currency: a.currency }
-  to_text = |m| "${m.cents // 100}.${m.cents % 100} ${m.currency.to_text()}"
+  to_text = |m| "${m.cents / 100}.${m.cents % 100} ${m.currency.to_text()}"
   zero    = |currency| Money { cents: 0, currency }
 }
 ```

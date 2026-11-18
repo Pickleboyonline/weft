@@ -1,8 +1,11 @@
-# Reads of `lists` that the client uses.
+// Reads of `lists` that the client uses.
 
-## Every list with its number of open items, oldest first.
-all_lists = || lists
-  .sort_by(.created)
-  .map(|l| { list: l, open: items.count_if(|i| i.list == l.id and not i.done) })
+/// Every list with its number of open items, oldest first. This is one
+/// database query: lists joined with a grouped count of open items.
+all_lists = Query(|| -> List({ list: TodoList, open: Int }) {
+  lists
+    .map(|l| { list: l, open: items.count_if(|i| i.list == l.id and not i.done) })
+    .sort_by(.list.created)
+})
 
-find_list = |id| lists.get(id)
+find_list = Query(|id: Id(TodoList)| -> Option(TodoList) { lists.get(id) })

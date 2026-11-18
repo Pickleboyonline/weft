@@ -1,29 +1,28 @@
-# Every write to `items`.
+// Every write to `items`. Each Command is a remote function the client calls.
 
-add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
-add_item! = |list, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  if not lists.has(list) { reject NoSuchList }    # it may have been deleted on another device
-  items.insert!(Item { list, title: cleaned })
-}
+add_item = Command(|list: Id(TodoList), title: Text| -> Result(Id(Item), [EmptyTitle, NoSuchList]) {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  if not lists.has(list) { return Err(NoSuchList) }  // it may have been deleted on another device
+  Ok(items.insert(Item { list, title: cleaned }))
+})
 
-rename_item! : Id(Item), Text => {} ! <reject [EmptyTitle], ..>
-rename_item! = |id, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  items.update!(id, |i| { ..i, title: cleaned })
-}
+rename_item = Command(|id: Id(Item), title: Text| -> Result({}, [EmptyTitle]) {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  Ok(items.update(id, |i| { ..i, title: cleaned }))
+})
 
-## set_done!, not toggle!. A checkbox click means "make it done" (or
-## "make it not done"), so the command says that. If two devices both
-## tick the box, the item ends up done, which is what both people meant.
-## A toggle! would flip it twice and leave it not done.
-set_done! : Id(Item), Bool => {} ! <..>
-set_done! = |id, done| items.update!(id, |i| { ..i, done })
+/// set_done, not toggle. A checkbox click means "make it done" (or
+/// "make it not done"), so the command says that. If two devices both
+/// tick the box, the item ends up done, which is what both people meant.
+/// A toggle would flip it twice and leave it not done.
+set_done = Command(|id: Id(Item), done: Bool| -> {} {
+  items.update(id, |i| { ..i, done })
+})
 
-delete_item! : Id(Item) => {} ! <..>
-delete_item! = |id| items.delete!(id)
+delete_item = Command(|id: Id(Item)| -> {} { items.delete(id) })
 
-clear_done! : Id(TodoList) => {} ! <..>
-clear_done! = |list| items.delete_where!(|i| i.list == list and i.done)
+clear_done = Command(|list: Id(TodoList)| -> {} {
+  items.delete_where(|i| i.list == list and i.done)
+})

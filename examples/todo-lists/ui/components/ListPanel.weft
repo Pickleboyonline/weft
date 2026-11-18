@@ -1,7 +1,7 @@
-## One list: its name (click to rename), a form to add items, the items, and
-## filters.
-component ListPanel(list: TodoList) {
-  state show     = All
+/// One list: its name (click to rename), a form to add items, the items, and
+/// filters.
+component ListPanel(list: TodoList, start: Filter = All) {
+  state show     = start
   state draft    = ""
   state renaming = False
   state new_name = ""
@@ -16,17 +16,18 @@ component ListPanel(list: TodoList) {
 
   rename = || {
     renaming = False
-    rename_list!(list.id, new_name) else |err| problem = err
+    rename_list(list.id, new_name).await.on_err(|err| problem = err)
   }
 
   add = || {
     problem = None
-    add_item!(list.id, draft) else |err| problem = err
-    draft = ""
+    let title = draft
+    draft = ""  // clear the input now, not after the server answers
+    add_item(list.id, title).await.on_err(|err| problem = err)
   }
 
   delete = || {
-    delete_list!(list.id)
+    delete_list(list.id)
     go(Home)
   }
 
@@ -61,7 +62,7 @@ component ListPanel(list: TodoList) {
       for f in [All, Active, Done] {
         button(on_click: || show = f, pressed: show == f) { f.to_text() }
       }
-      button(on_click: || clear_done!(list.id)) { "Clear done" }
+      button(on_click: || clear_done(list.id)) { "Clear done" }
       button(on_click: delete) { "Delete list" }
     }
   }

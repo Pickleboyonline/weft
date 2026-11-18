@@ -1,7 +1,8 @@
 # Reading list
 
 Papers behind each part of the design in [language.md](language.md), grouped by
-the question they answer. Every citation and link was checked on 2026-11-14.
+the question they answer. Every citation and link was checked on 2026-11-14,
+or on 2026-11-18 for the sections on queries and database behavior.
 Where open-source code exists, it's cloned in `refs/` (see
 [refs/README.md](../refs/README.md)).
 
@@ -41,6 +42,23 @@ The theory behind replacing "use a time-series database" with primitives.
 - Chaudhuri, Narasayya. [An Efficient, Cost-Driven Index Selection Tool for Microsoft SQL Server](https://www.vldb.org/conf/1997/P146.PDF). VLDB 1997. *The classic index advisor.*
 - Pavlo et al. [Self-Driving Database Management Systems](https://www.cidrdb.org/cidr2017/papers/p42-pavlo-cidr17.pdf). CIDR 2017. *Re-planning from production telemetry: the "no static shapes" problem.*
 - McSherry, Murray, Isaacs, Isard. [Differential Dataflow](https://www.cidrdb.org/cidr2013/Papers/CIDR13_Paper111.pdf). CIDR 2013. *Caches, materialized views and stream processing as one idea: keeping derived data up to date.*
+
+## Queries in the language, with a guarantee
+
+How table reads written as ordinary code can always become efficient
+database queries, never N+1 and never a silent fallback.
+
+- Cooper. [The Script-Writer's Dream: How to Write Great SQL in Your Own Language, and Be Sure It Will Succeed](https://doi.org/10.1007/978-3-642-03793-1_3). DBPL 2009. *Links: a query fragment that always normalizes to one SQL query.*
+- Cheney, Lindley, Wadler. [A Practical Theory of Language-Integrated Query](https://doi.org/10.1145/2500365.2500586). ICFP 2013. *The theory weft's query fragment follows. Start with this one.*
+- Cheney, Lindley, Wadler. [Query Shredding: Efficient Relational Evaluation of Queries over Nested Multisets](https://doi.org/10.1145/2588555.2612186). SIGMOD 2014. *Nested results as one query per level of nesting, never one per row.*
+- Giorgidze, Grust, Schreiber, Weijers. [Haskell Boards the Ferry: Database-Supported Program Execution for Haskell](https://doi.org/10.1007/978-3-642-24276-2_1). IFL 2010 (LNCS, 2011). *The same idea for nested Haskell comprehensions.*
+- Budiu, Chajed, McSherry, Ryzhyk, Tannen. [DBSP: Automatic Incremental View Maintenance for Rich Query Languages](https://doi.org/10.14778/3587136.3587137). PVLDB 2023. *Any relational query can be kept up to date from changes: how views stay in sync.*
+- Microsoft. [Breaking changes in EF Core 3.x](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-3.x/breaking-changes). *Why silent client-side fallback was removed from Entity Framework.*
+
+## When the database doesn't do what the app assumes
+
+- Bailis, Fekete, Franklin, Ghodsi, Hellerstein, Stoica. [Feral Concurrency Control: An Empirical Investigation of Modern Application Integrity](https://doi.org/10.1145/2723372.2737784). SIGMOD 2015. *Rails validations, such as uniqueness, broken under concurrency in real apps.*
+- Warszawski, Bailis. [ACIDRain: Concurrency-Related Attacks on Database-Backed Web Applications](https://doi.org/10.1145/3035918.3064037). SIGMOD 2017. *Exploitable isolation bugs in real e-commerce platforms.*
 
 ## Choosing the weakest safe coordination
 

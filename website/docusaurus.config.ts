@@ -11,7 +11,7 @@ function withWeftTokens(base: PrismTheme, c: Record<string, string>): PrismTheme
     styles: [
       ...base.styles,
       {types: ['control'], style: {color: c.control}},
-      {types: ['effect', 'logical', 'boolean', 'constant-language', 'effect-kind'], style: {color: c.keyword}},
+      {types: ['logical', 'boolean', 'constant-language'], style: {color: c.keyword}},
       {types: ['tag'], style: {color: c.tag}},
       {types: ['property', 'parameter'], style: {color: c.property}},
     ],

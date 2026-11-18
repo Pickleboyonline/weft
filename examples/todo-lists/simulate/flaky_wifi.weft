@@ -1,4 +1,5 @@
-## Three browsers on bad wifi: dropped messages, and offline a third of the time.
+/// Three browsers on bad wifi: dropped messages, and unable to reach the server a
+/// third of the time.
 flaky_wifi = Simulation {
   clients:            3,
   actions_per_client: 500,

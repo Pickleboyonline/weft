@@ -14,33 +14,45 @@ yet, so none of it has been tested against a real compiler.
 
 > Every run of a deployed weft app can be explained by a run of the
 > one-machine program: the same commands, applied one at a time, in some
-> order, within the consistency you declared. When your choices make that
-> impossible for one of your invariants, the compiler says which invariant,
-> and why, instead of quietly weakening it.
+> order. Once the network goes quiet, every screen shows what the server
+> holds.
 
 The *one-machine program* is your code deployed as `local`: one
 process, in memory, with no network. It's the reference everything else is
 compared against.
 
+The deployed app has one fixed shape: a server with a database, and any
+number of clients. Clients reach the server only through
+[queries and commands](/docs/reference/commands-and-queries). Spreading data
+beyond that one server is an open question, and the promise doesn't cover it
+(see [The limits](#the-limits)).
+
 ## What that means
 
-These are the properties the design aims for under the default consistency
-setting, `session`:
+These are the properties the design aims for:
 
 - **Commands are atomic.** A command takes effect entirely or not at all.
+  Returning `Err` undoes everything it wrote.
 - **Commands appear to run one at a time.** The server's data always matches
   some one-at-a-time order of every client's commands.
-- **You see your own changes immediately.** A client applies its own commands
-  locally first, and the server confirms or rejects them later.
-- **Clients converge.** Once messages stop flowing, every client's query results equal
-  the server's.
-- **Your checks hold.** Every check (in `checks/`) holds on the server after every step.
-  A client's copy is checked once its sync settles.
-- **Rejections are delivered.** A command the server rejects comes back to the
-  client as a typed reason (`Rejected(NoSuchList)`), and the client's
-  optimistic change is rolled back.
+- **Retries apply once.** Every command call carries a request id, and the
+  server applies each id at most once, so a double click or a resent request
+  doesn't run twice.
+- **Writes refresh reads.** When a command writes a table, every query on
+  screen that reads that table is refreshed. Your own change appears once the
+  server confirms it; changes aren't shown before that.
+- **Screens catch up.** Each query result is its own snapshot, so two results
+  on one screen may briefly come from different moments. Once messages stop
+  flowing, every query result a client shows equals what that query returns
+  on the server.
+- **Your checks hold.** Every check (in `checks/`) holds on the server after
+  every step.
+- **Failures are delivered.** A command that fails on the server comes back to
+  the client as its typed reason (`Err(NoSuchList)`), and the client must
+  handle it.
 
-What stronger or weaker settings guarantee is part of the open design.
+The full list, with the bug each one removes, is in
+[Commands and queries: guarantees](/docs/reference/commands-and-queries#guarantees).
 
 ## What the simulator injects
 
@@ -53,70 +65,78 @@ Fault model as designed. "Specified" means a
 | Message loss | A percentage of messages are dropped (`drop: 10%`) | Specified |
 | Delay and reordering | Each message gets a random latency (`latency: 5ms..=2s`), so messages overtake each other | Specified |
 | Duplicated messages | A message is delivered more than once (`duplicate: 1%`) | Specified |
-| Offline periods | A client is disconnected for a share of the run (`offline: 30%`) and queues its commands | Specified |
+| Offline periods | A client can't reach the server for a share of the run (`offline: 30%`) | Specified |
 | Crashes and restarts | A server or client stops and recovers from durable state (`crashes: Crashes { … }`) | Specified |
 | Extern failures | Each extern's simulation model decides how it fails (`Fallible { ok: 95%, error: Bounced }`) | Specified |
+| Other services | Responses from hosts reached with `http` or `ws` come from a model per host (`outside: { … }`) | Specified |
 | Clock skew | Machines disagree about the time | Planned |
 
 Every simulated run is checked three ways:
 
-1. **Your checks**, after every step on the server, and on each client once
-   it has synced.
+1. **Your checks**, on the server's data after every step.
 2. **The oracle:** the run's final data must match some one-at-a-time order of
    the same commands on the one-machine program.
-3. **Convergence:** once the simulated network goes quiet, every client's query results
-   must equal the server's.
+3. **Convergence:** once the simulated network goes quiet, every query result
+   a client shows must equal what that query returns on the server.
 
 The simulator is deterministic. All randomness (the network, extern models,
-`random!` and `now!`) comes from one seed, so a failing seed replays the same
+`random` and `now`) comes from one seed, so a failing seed replays the same
 run exactly.
 
 ## The limits
 
-### Some invariants need coordination
+### Distribution isn't designed
 
-With offline writes, two devices can each do something that is fine alone
-but wrong together. No system can prevent that without the devices
-coordinating first; this is the CALM theorem. Typical cases:
+The promise holds for one server and its database. Keeping copies of data on
+clients, writing while offline, and spreading tables across several servers
+are deliberately left open (see [the language design](/design/language),
+open decision 4).
+
+Once data is copied, two devices can each do something that is fine alone but
+wrong together. No system can prevent that without the devices coordinating
+first; this is the CALM theorem. Typical cases:
 
 - uniqueness ("no two lists have the same name");
 - limits ("at most 10 items per list");
-- references ("every item belongs to a list that exists"; see the delete race
-  in [The big idea](/docs/#4-distribution-bugs-are-found-before-users-find-them)).
+- references ("every item belongs to a list that exists").
 
-For each one, weft is designed to make you choose rather than choose for you:
-
-- **Reject on arrival.** The server checks when the command arrives, and the
-  device that lost the race gets a typed rejection. `add_item!` does this with
-  `NoSuchList`.
-- **Require coordination.** The command waits for the server, so it doesn't
-  work offline.
-- **Merge.** Accept both and resolve with a rule you write.
+With one server, these hold, because commands run as if alone. Getting that
+right is still work for the compiler: see the delete race in
+[The big idea](/docs/#4-races-are-found-before-users-find-them).
 
 ### The simulator explores; it doesn't prove
 
 A clean simulation means no failure in the runs it tried. You choose how many
-runs and which faults. It's strong evidence, not a proof. Exhaustive checking
-of small configurations, as Hydro does, may come later.
+runs and which faults. It's strong evidence, not a proof. A simulation can
+also [exhaust](/docs/reference/checks-and-tests#how-strongly-a-check-is-verified)
+a small configuration, which finds every failure within its bound and says
+nothing beyond it.
 
 ### Externs are only as good as their models
 
-The simulator runs an extern's `sim` block, not the real email service or
+The simulator runs an extern's `sim` model, not the real email service or
 payment API. If the model is wrong, the simulation is wrong in the same way.
 
 ### Intent can't be inferred
 
-If two devices each flip a checkbox, a `toggle!` command flips it twice and
+If two devices each flip a checkbox, a `toggle` command flips it twice and
 leaves it where it started. That's correct, since it's what one machine would
 do with two toggles, but probably not what either person meant. A
-`set_done!(id, True)` command says what was meant. weft guarantees
+`set_done(id, True)` command says what was meant. weft guarantees
 correctness relative to the commands you write; choosing commands that say
 what people mean is up to you.
+
+### Who may call what isn't designed
+
+Authorization is open. Until it's designed, every client can call every query
+and command.
 
 ### Performance isn't promised
 
 The goal is to come close to a hand-built system for common patterns. Nothing
-here guarantees it, and nothing has been measured.
+here guarantees it, and nothing has been measured. The one firm rule is that
+a query compiles to one database query per level of nesting, or doesn't
+compile.
 
 ## Further reading
 

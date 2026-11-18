@@ -22,8 +22,8 @@ Every project has the same layout, in the spirit of Rails
 todo-lists/
   weft.toml        the project's name
   data/            records and their tables
-  commands/        functions that write: what clients call
-  queries/         functions that read: what views use
+  commands/        Command values: every write a client can make
+  queries/         Query values: every read a client can make
   ui/
     App.weft       the root component, around every page
     pages/         one component per URL: lists/[id].weft is /lists/:id
@@ -34,19 +34,20 @@ todo-lists/
 ```
 
 There are no `module` lines and no imports: the project is the module. There
-are no `command`, `query` or `check` keywords either: what a function is
-follows from what it does and which folder it's in.
+are no `command`, `query` or `check` keywords either: remote functions and
+invariants are values, `Command(…)`, `Query(…)` and `Check(…)`. Folders are a
+convention.
 
 ## Data
 
 ```weft title="data/item.weft"
-## One item on a list.
+/// One item on a list.
 record Item {
-  key id:  Id(Item)     = new_id!()   # `!`: making an id is an effect
-  list:    Id(TodoList)               # a reference to a row of lists
+  key id:  Id(Item)     = new_id()   // a new random id
+  list:    Id(TodoList)               // a reference to a row of lists
   title:   Text
   done:    Bool = False
-  created: Time = now!()
+  created: Time = now()
 }
 
 items = Table(Item, delete_with: { list: lists })
@@ -59,21 +60,24 @@ items = Table(Item, delete_with: { list: lists })
 ## Commands: every write
 
 ```weft title="commands/items.weft"
-add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
-add_item! = |list, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  if not lists.has(list) { reject NoSuchList }
-  items.insert!(Item { list, title: cleaned })
-}
+add_item = Command(|list: Id(TodoList), title: Text| -> Result(Id(Item), [EmptyTitle, NoSuchList]) {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  if not lists.has(list) { return Err(NoSuchList) }
+  Ok(items.insert(Item { list, title: cleaned }))
+})
 ```
 
-- A function in `commands/` that writes is a command: clients call it, and it
-  runs as a transaction.
-- Its signature is required, because it's the API: parameter types, result,
-  and the `reject` reasons. `..` stands for the rest of its effects.
-- `!` marks anything that changes the world.
-- `reject` stops the command and undoes it. See
+- A `Command(…)` is a remote function that writes: it runs on the server,
+  atomically and as if alone, and clients call it. It lives in `commands/` by
+  convention.
+- Its parameter types and result type are required, because they're the API.
+  A command that can fail returns a `Result` listing its reasons.
+- There's nothing to mark effects: the compiler infers that `add_item` reads
+  `lists` and writes `items`, and uses that to refresh the queries that read
+  `items` and to keep it from interleaving with `delete_list`. Your editor
+  shows it on hover.
+- Returning `Err` stops the command and undoes it. See
   [Commands and queries](/docs/reference/commands-and-queries).
 
 ## Queries: every read
@@ -87,14 +91,17 @@ keeps = |show, i| match show {
 
 expect keeps(Active, { done: True }) == False
 
-items_in = |list, show| items
-  .filter(|i| i.list == list and keeps(show, i))
-  .sort_by(.created)
+items_in = Query(|list: Id(TodoList), show: Filter| -> List(Item) {
+  items
+    .filter(|i| i.list == list and keeps(show, i))
+    .sort_by(.created)
+})
 ```
 
 - A function is `name = |parameters| body`. `match` must cover every case.
-- A read-only function in `queries/` is a query. Views that use it stay in
-  sync as the data changes, on this device or another.
+- A `Query(…)` is a remote function that reads. It compiles to one database
+  query, guaranteed, and every component showing it is refreshed when a
+  command writes `items`, from this device or another.
 - `expect` states a fact about pure code; `weft test` checks it.
 
 ## The client: components
@@ -112,11 +119,11 @@ component ItemRow(item: Item) {
 
   save = || {
     editing = False
-    rename_item!(item.id, draft) else |err| problem = err
+    rename_item(item.id, draft).await.on_err(|err| problem = err)
   }
 
   view = li {
-    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
+    checkbox(checked: item.done, on_change: |d| set_done(item.id, d))
     if editing {
       form(on_submit: save) {
         input(bind: draft)
@@ -139,12 +146,14 @@ component ItemRow(item: Item) {
 
 - **`state`** is local to each instance: every row has its own `editing`.
   Types are inferred: `problem` is `[None, EmptyTitle]` because that's what
-  `rename_item!` can reject with.
+  `rename_item` can fail with.
 - **Handlers** are ordinary functions in the component that change its state,
   named (`edit`) or inline (`|| editing = False`). They're the only place
   state changes.
-- **Calling a command** in a handler sends it. `else |err| …` is required
-  because `rename_item!` can reject; `then |result| …` is optional.
+- **Calling a command** in a handler sends it. `.await` waits for the
+  server's result, which is required here because `rename_item` can fail and
+  a `Result` can't be ignored. `.on_err(…)` handles just the failure. The
+  screen changes when the server confirms and `items_in` refreshes.
 - **`view`** is markup, and can't change anything. **`style`** is CSS scoped to
   this component.
 
@@ -181,13 +190,14 @@ component App {
 ## Checks: the only tests you write
 
 ```weft title="checks/items.weft"
-titles_not_blank = items.all(|i| not i.title.trim().is_empty())
-no_orphans       = items.all(|i| lists.has(i.list))
+titles_not_blank = Check(|| items.all(|i| not i.title.trim().is_empty()))
+no_orphans       = Check(|| items.all(|i| lists.has(i.list)))
 ```
 
-A `Bool` in `checks/` is an invariant. The simulator checks every one after
-every step of every simulated run. Two more are always on: every run must
-match some one-machine run, and clients must converge with the server. See
+A `Check` is an invariant. The simulator checks every one on the server's
+data after every step of every simulated run. Two more are always on: every
+run must match some one-machine run, and once the network goes quiet, every
+query result a client shows must equal the server's. See
 [Checks and tests](/docs/reference/checks-and-tests).
 
 ## Deployment and simulation
@@ -196,9 +206,8 @@ match some one-machine run, and clients must converge with the server. See
 prod = Deployment {
   machines: {
     server:  Machine { platform: "weft/server-rust-postgres" },
-    browser: Machine { platform: "weft/browser-ts", count: Many, offline: True },
+    browser: Machine { platform: "weft/browser-ts", count: Many },
   },
-  consistency: { lists: Session, items: Session },
 }
 ```
 
@@ -212,15 +221,18 @@ flaky_wifi = Simulation {
 
 - Deployments and simulations are ordinary values, checked like any other
   code.
-- Conventions fill in the rest: the one-process `local` deployment is
-  generated, tables go on `server`, and the client on `browser`. See
+- The shape is fixed: one server with a database, and clients. Tables,
+  queries and commands run on the server; components on the clients. Copies
+  of data on clients and offline use aren't designed yet.
+- The one-process `local` deployment is generated. A simulation's `offline`
+  is the share of the run each client can't reach the server. See
   [Deployment and simulation](/docs/reference/deployment).
 
 ## Escape hatches
 
 ```weft title="externs/send_email.weft"
-send_email! : Text, Text => {} ! <reject [Bounced]>
-send_email! = Extern {
+send_email : Text, Text -> Result({}, [Bounced])
+send_email = Extern {
   needs: [Email],
   sim:   Fallible { ok: 95%, error: Bounced, latency: 50ms..=2s },
 }

@@ -1,5 +1,5 @@
-## Two browsers on a slow but reliable network, running prod's layout on
-## simulated platforms.
+/// Two browsers on a slow but reliable network, running prod on simulated
+/// platforms.
 two_devices = Simulation {
   clients:            2,
   actions_per_client: 300,

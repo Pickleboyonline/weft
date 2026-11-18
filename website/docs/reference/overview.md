@@ -20,34 +20,34 @@ Where a rule says "is a compile error", that's what the compiler will report.
 - **Every heading is linkable.** Link to a rule by its page and heading, e.g.
   [Control flow: `if`](control-flow#if-and-else).
 - **Failing code is marked.** A line that doesn't compile ends with a comment
-  starting `# error:`, followed by what the compiler reports.
+  starting `// error:`, followed by what the compiler reports.
 - **"What it compiles to"** notes say how a construct runs. They describe the
   design, not a promise about any particular platform.
 
 ## The whole language on one screen
 
 ```weft
-## A record is a nominal type: fields, then methods.
+/// A record is a nominal type: fields, then methods.
 record Todo {
-  key id:  Id(Todo) = new_id!()
+  key id:  Id(Todo) = new_id()
   title:   Text
   done:    Bool = False
 
   label = |t| if t.done { "Done: ${t.title}" } else { t.title }
 }
 
-todos = Table(Todo)                       # storage, provided by the platform
+todos = Table(Todo)                       // storage, provided by the platform
 
-## A function that writes a table is a command when a client calls it.
-add_todo! : Text => Id(Todo) ! <reject [EmptyTitle], ..>
-add_todo! = |title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  todos.insert!(Todo { title: cleaned })
-}
+/// A command: a server function the client calls to change data.
+add_todo = Command(|title: Text| -> Result(Id(Todo), [EmptyTitle]) {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  Ok(todos.insert(Todo { title: cleaned }))
+})
 
-## A function that only reads is a query when a view uses it.
-open_todos = || todos.filter(|t| not t.done).sort_by(.title)
+/// A query: a server function the client calls to read data. It compiles to
+/// one database query.
+open_todos = Query(|| -> List(Todo) { todos.filter(|t| not t.done).sort_by(.title) })
 
 component TodoList {
   state draft   = ""
@@ -55,8 +55,9 @@ component TodoList {
 
   add = || {
     problem = None
-    add_todo!(draft) else |err| problem = err
+    let title = draft
     draft = ""
+    add_todo(title).await.on_err(|err| problem = err)
   }
 
   view = main {
@@ -77,15 +78,17 @@ component TodoList {
    `handler`, and bindings `name = …`) and *expressions*. Configuration is
    never a phrase: it's named arguments or record fields whose values are
    ordinary expressions.
-3. **Purity is the default.** A function whose name ends in `!` may change the
-   world. Every other function can't. See [Effects](effects).
-4. **What a function is depends on what it does and where it lives,** not on a
-   keyword. A function that writes tables, in `commands/`, is a command. A
-   read-only function in `queries/` is a query. See
+3. **Effects are inferred, never written.** The compiler knows exactly what
+   every function reads, writes and sends, and reports an error where an
+   effect isn't allowed. Nothing in a name or type marks it. See
+   [Effects](effects).
+4. **What a function is depends on what it does and how it's used,** not on a
+   keyword or a folder. A function a handler calls that writes tables is a
+   command; a function a view reads is a query. See
    [Commands and queries](commands-and-queries).
-5. **Only three things can change:** a `var` inside a function body, a
-   component's `state` inside that component's functions, and tables, through
-   `!` functions. Everything else is immutable.
+5. **Only three things can change:** a `let mut` inside a function body, a
+   component's `state` inside that component's functions, and tables.
+   Everything else is immutable.
 6. **Every value is data or a function.** There are no objects with identity,
    no references, and no null.
 
@@ -94,11 +97,11 @@ component TodoList {
 | Absent | Instead |
 |---|---|
 | Macros | Generators that write ordinary code (`weft generate`), and compiler-derived methods |
-| Exceptions | `reject` in commands, `Result` and `?` in other functions, `crash` for impossible states |
+| Exceptions | `Result` and `?` everywhere, commands included; `crash` for impossible states |
 | `null` | `Option(a)`: `None` or `Some(x)` |
 | Classes and inheritance | Records with methods; `where` clauses for generic code |
 | Implicit conversions | Explicit methods: `n.to_dec()`, `x.to_text()` |
-| Shared mutable state | Tables, changed only by `!` functions |
+| Shared mutable state | Tables, changed only through their write methods |
 | Semicolons | One statement per line |
 
 ## Not yet designed

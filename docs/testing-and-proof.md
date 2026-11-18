@@ -107,9 +107,9 @@ Weft's correctness splits into two questions, and they suit different
 methods.
 
 1. **Is the app's logic right on one machine?** For example: does every
-   command keep `no_orphans` true? This is sequential reasoning about pure
-   functions over tables, where Bend-style laws are cheap. Proving that
-   `add_item!` preserves `no_orphans` is an induction over one function, not a
+   command keep `no_orphans` true? This is sequential reasoning about
+   functions over one snapshot of the tables, where Bend-style laws are cheap.
+   Proving that `add_item` preserves `no_orphans` is an induction over one function, not a
    Raft-sized proof.
 2. **Does the distributed version behave like the one-machine version?** This
    is a refinement property: the expensive kind Verdi and IronFleet proved.
@@ -146,6 +146,6 @@ simulator exercises them together, on every run.
   the proof) fits weft's agent-first workflow. It needs a proof language small
   enough for agents to write reliably.
 - **Liveness.** Simulation and bounded checking can only check "eventually"
-  within a step limit ("synced within 50 steps after the network heals"), and
+  within a step limit ("every screen refreshed within 50 steps after the network heals"), and
   the AWS team missed a bug by not checking liveness at all. Weft's
   convergence check is a liveness property, so it needs an explicit bound.

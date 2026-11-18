@@ -1,8 +1,8 @@
-# /lists/:id
-#
-# `id` comes from the URL. If it isn't a valid Id(TodoList), the client shows
-# ui/pages/404.weft. If it's valid but the list is gone, that's an ordinary case
-# this page handles: someone may have deleted it on another device.
+// /lists/:id
+//
+// `id` comes from the URL. If it isn't a valid Id(TodoList), the client shows
+// ui/pages/404.weft. If it's valid but the list is gone, that's an ordinary case
+// this page handles: someone may have deleted it on another device.
 
 component ListPage(id: Id(TodoList)) {
   view = match find_list(id) {

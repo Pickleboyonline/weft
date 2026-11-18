@@ -1,0 +1,13 @@
+[package]
+name = "weft-syntax"
+description = "Parses weft with the tree-sitter grammar and builds a typed AST"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+tree-sitter = "0.25"
+tree-sitter-language = "0.1"
+
+[build-dependencies]
+cc = "1"

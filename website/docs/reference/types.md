@@ -33,11 +33,11 @@ fields but different names are different types.
 
 ```weft
 record Item {
-  key id:  Id(Item)     = new_id!()
+  key id:  Id(Item)     = new_id()
   list:    Id(TodoList)
   title:   Text
   done:    Bool = False
-  created: Time = now!()
+  created: Time = now()
 }
 ```
 
@@ -45,7 +45,7 @@ record Item {
 - **`key`** marks the primary key. A record stored in a
   [`Table`](data#tables) must have exactly one.
 - **Defaults** are evaluated each time a record is built without that field.
-  A default may call an effectful function, such as `now!()`; then building
+  A default may call an effectful function, such as `now()`; then building
   the record is effectful too.
 - **Methods** are bindings inside the braces: see
   [Functions: methods](functions#methods). A line with `:` is a field; a line
@@ -54,16 +54,16 @@ record Item {
 Build, read and update records:
 
 ```weft
-item = Item { list: id, title: "milk" }      # defaults fill id, done, created
+item = Item { list: id, title: "milk" }      // defaults fill id, done, created
 title = item.title
-done_item = { ..item, done: True }           # a copy with one field changed
-renamed = Item { list: id, title }           # `title` is short for `title: title`
+done_item = { ..item, done: True }           // a copy with one field changed
+renamed = Item { list: id, title }           // `title` is short for `title: title`
 ```
 
 An **anonymous record** has no declaration. Its type is its fields:
 
 ```weft
-row = { list: l, open: 3 }                   # type: { list: TodoList, open: Int }
+row = { list: l, open: 3 }                   // type: { list: TodoList, open: Int }
 ```
 
 ## Tag unions
@@ -72,7 +72,7 @@ A **tag union** lists the shapes a value can take. Tag unions are
 structural: two unions with the same tags are the same type.
 
 ```weft
-Filter : [All, Active, Done]                 # a name for a union
+Filter : [All, Active, Done]                 // a name for a union
 Shape : [Circle(Dec), Rect({ w: Dec, h: Dec })]
 ```
 
@@ -92,8 +92,9 @@ Result(ok, err) : [Ok(ok), Err(err)]
 
 - There's no `null`. A value that may be missing is an `Option`:
   `lists.get(id)` returns `Option(TodoList)`.
-- A pure computation that can fail returns a `Result`. Commands use `reject`
-  instead (see [Commands](commands-and-queries#reject)).
+- Anything that can fail returns a `Result`, commands included. A command
+  that returns `Err` is also rolled back (see
+  [Commands: failing](commands-and-queries#failing)).
 
 ## Collections
 
@@ -113,7 +114,7 @@ original as it was.
 - `Id(Item)` is the id of an `Item` row, and can't be mixed up with an
   `Id(TodoList)`. A field of type `Id(TodoList)` is a reference to a row in a
   table of `TodoList`s.
-- Ids are opaque. `new_id!()` makes one, and their text form (`id.to_text()`,
+- Ids are opaque. `new_id()` makes one, and their text form (`id.to_text()`,
   and in URLs) is a 26-character URL-safe token.
 - An id says nothing about whether its row still exists. Check with
   `table.get(id)` or `table.has(id)`.
@@ -121,16 +122,17 @@ original as it was.
 ## Function types
 
 ```weft
-keeps     : Filter, Item -> Bool                                  # pure
-add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
+keeps    : Filter, Item -> Bool
+add_item : Id(TodoList), Text -> Result(Id(Item), [EmptyTitle, NoSuchList])
 ```
 
-- `->` is a pure function, and `=>` is an effectful one.
-- After `!` comes the [effect row](effects#effect-rows): what the function
-  touches. `..` at the end means "plus whatever else is inferred".
+- A function type is its parameter types, `->`, and its result type.
+- Types don't say what effects a function has, or whether it has any. The
+  compiler infers that, and your editor shows it (see
+  [Effects](effects#inferred-never-written)).
 - A function taking no arguments has type `() -> T`.
-- UI callbacks have the type `Action` (no payload) or `Action(a)` (receives an
-  `a`): see [UI: passing handlers](ui#passing-handlers-to-children).
+- UI callbacks have the type `Action`, which is `() -> {}`, or `Action(a)`,
+  which is `a -> {}`: see [UI: passing handlers](ui#passing-handlers-to-children).
 
 ## Type variables and `where`
 
@@ -157,8 +159,9 @@ This is static dispatch, decided at compile time. See
 
 Annotations are optional, except:
 
-1. **Functions in `commands/`** must declare their parameter types, their return
-   type, and their `reject` reasons. They are the API between clients and the
+1. **`Query(…)` and `Command(…)`** functions must declare their parameter
+   types and their result type, which for a command that can fail is a
+   `Result` listing its reasons. They are the API between clients and the
    server, and a changed signature is a changed contract.
 2. **Externs** must declare their full type: weft can't see inside them.
 3. **A `where` clause** is required when an annotated function calls a method
@@ -175,7 +178,7 @@ Every record, tag union, list, dict, set and built-in type automatically has:
   tags in declaration order);
 - `to_text` (a readable form, e.g. `Item { title: "milk", … }`);
 - `hash`, so it can be a `Dict` key or `Set` member;
-- encoding, so it can be stored, synced and sent.
+- encoding, so it can be stored and sent between client and server.
 
 Functions are the exception: they have none of these, which is why
 [component state](ui#state) and table rows can't hold functions.

@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "weft",
+      "camelcase": "Weft",
+      "scope": "source.weft",
+      "path": ".",
+      "file-types": ["weft"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "weft grammar: the executable form of the language reference",
+    "links": { "repository": "https://example.invalid/weft" }
+  },
+  "bindings": { "c": false, "go": false, "node": false, "python": false, "rust": false, "swift": false }
+}

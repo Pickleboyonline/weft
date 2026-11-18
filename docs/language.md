@@ -34,6 +34,19 @@ So weft separates three things that today's software mixes together:
 
 The compiler maps (1) onto (3) under the constraints of (2).
 
+**Where the design stands.** Layer (2) is deliberately not designed yet.
+Placement, replication, client copies of data, offline use and consistency
+levels have consequences that are hard to prove and understand up front, and
+committing to them early would turn weft into a DSL with an escape hatch for
+every case the model didn't foresee. So the language commits to (1) and (3)
+with one fixed shape: a server with a database, and clients. The client and
+server talk through explicit, typed remote functions (`Query` and `Command`,
+like SvelteKit's remote functions or Next.js server actions), and the language
+adds guarantees that remove whole classes of bugs those apps have: typed and
+validated calls, typed failures, writes that refresh the reads they affect,
+retries applied once, atomic commands, N+1-free queries, and server-only code
+that can't reach the client. Layer (2) is section 8's largest open question.
+
 The split also gives testing an oracle. **The logical program, run on one
 machine, is its own specification.** The simulator checks that the distributed
 version stays within the declared consistency of that reference run. You get
@@ -46,10 +59,12 @@ the invariants of your domain.
 
 - One program covers every machine: backend, frontend and storage are a single
   compilation graph.
-- The compiler chooses protocols (replication, sync, routing, caching) from a
-  library of templates, guided by placement annotations and a cost model.
-- Code is pure by default, and what changes the world is visible where it
-  happens.
+- Client and server talk through explicit remote functions, with guarantees
+  that remove classes of bugs rather than features that hide them.
+- The language stays general enough that ordinary needs (other services,
+  sockets, timers, widgets) are written in it, not escaped from it.
+- Code is pure by default, and the compiler knows every effect, reads
+  included, without the developer marking any.
 - Deterministic simulation is built in, not bolted on.
 - People and AI agents can both read and write it. Compiler errors are exact
   fix instructions.
@@ -64,11 +79,11 @@ the invariants of your domain.
 
 | # | Principle | From |
 |---|---|---|
-| 1 | Pure by default. A function whose name ends in `!` may change the world; nothing else can. | Roc |
-| 2 | Every function's type carries an inferred *effect row* saying what it touches. The compiler uses rows to place code, sync data and decide where coordination is needed. | Koka |
+| 1 | Effects are inferred, never written. The compiler knows exactly what each function reads, writes and sends, and uses that for its guarantees: which queries a command refreshes, which code must stay on the server, what must not interleave. Names and types don't mark it. | Koka |
+| 2 | Table reads are language-integrated queries with a guarantee: every read compiles to one database query, or one per level of nesting, or it's a compile error. | Links; Cheney, Lindley and Wadler |
 | 3 | Platforms provide every effect; the language has no I/O of its own. | Roc |
 | 4 | Only effects that resume once, or never, may cross machines. | Koka's operation kinds |
-| 5 | What a function *is* (command, query, check, handler) follows from its effects and its folder, not a keyword. | Koka, Rails |
+| 5 | Remote functions are explicit values, `Query(…)` and `Command(…)`: the client–server boundary is the app's API, so it's written down. Other roles (handlers, where a helper runs) follow from the code. No keywords; folders are a convention. | SvelteKit, Rails |
 | 6 | Configuration is values: tables, jobs, externs, deployments and simulations are ordinary records of standard-library types. | Encore, Wing, Elm |
 | 7 | Two kinds of syntax, declarations and expressions. No phrase-like mini-languages. | |
 | 8 | Components keep local state, changed only by their own handlers, and compile to the Elm Architecture. | Svelte (feel), Elm (discipline) |
@@ -93,12 +108,12 @@ The todo-lists example (`examples/todo-lists`) shows each piece in place:
 A command, as it appears in the example:
 
 ```weft
-add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
-add_item! = |list, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  if not lists.has(list) { reject NoSuchList }
-  items.insert!(Item { list, title: cleaned })
+add_item : Id(TodoList), Text -> Result(Id(Item), [EmptyTitle, NoSuchList])
+add_item = |list, title| {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  if not lists.has(list) { return Err(NoSuchList) }
+  Ok(items.insert(Item { list, title: cleaned }))
 }
 ```
 
@@ -111,8 +126,9 @@ component ListPanel(list: TodoList) {
 
   add = || {
     problem = None
-    add_item!(list.id, draft) else |err| problem = err
+    let title = draft
     draft = ""
+    add_item(list.id, title).await.on_err(|err| problem = err)
   }
 
   view = section {
@@ -126,28 +142,92 @@ component ListPanel(list: TodoList) {
 
 ## 5. Decisions, and why
 
-### Effects are typed, and `!` marks the ones that matter
+### Effects are inferred, as in Koka
 
-Every function's effects are inferred, and its name ends in `!` exactly when it
-can change the world or isn't deterministic. Table *reads* are tracked but
-unmarked: they're deterministic for a given set of rows, and marking them would
-put `!` on every query, hiding the writes that matter. Rows are required only
-in command and extern signatures, which form the API; elsewhere they're
-inferred and shown on hover.
+The compiler infers every function's effects (reading or writing a table,
+assigning component state, sending a command, navigating, time, randomness,
+externs, user-defined effects) and nothing in the code marks them.
 
-### Roles come from effects and folders, not keywords
+Two marked designs came first. The first combined Koka's effect rows with
+Roc's `!` but exempted reads, state and sends from `!`, so `!` meant "some
+effects, but not others". The second applied Roc's rule fully, with `!` on
+every effect, but then components, inline handlers and record defaults were
+still exceptions, and every query carried a `!`.
+
+The deciding argument is weft's own premise. You write as if on one machine,
+and the compiler handles distribution, so effects aren't hazards the
+developer manages: the compiler and the simulator are what need them, and
+they get them by inference. Marking existed only for human readers, and a
+marker that's right most of the time is worse than none. What readers lose is
+supplied by tooling: hover, highlighting of calls that read or write, and
+`weft explain effects` as text for agents. Where an effect matters (in
+`expect`, top-level constants, views, checks and queries on tables) the
+compiler reports it by name.
+
+Koka also gives effect polymorphism: `map` has its callback's effects, so
+there's one `map`, not a pure one and an effectful one.
+
+From Roc, weft takes errors as values: a command that can fail returns a
+`Result`, and returning `Err` rolls it back. That replaced `reject`, an
+effect-based mechanism.
+
+Reads stay deterministic where it matters through snapshots: a command reads
+one snapshot plus its own writes, a component reads one snapshot per render,
+and the simulator chooses when snapshots advance.
+
+User-defined effects and handlers come from Koka too, with operation kinds
+deciding which handlers may run on another machine.
+
+### Queries are language-integrated, with a guarantee
+
+LINQ and ORMs translate ordinary code into SQL where they can and fall back,
+or fail at runtime, where they can't, and nested results become N+1 queries.
+Entity Framework Core 3.0 stopped evaluating untranslatable parts on the
+client, which it had done with only a warning, because the fallback caused
+performance problems nobody saw in testing.
+
+The research answer (Cooper's work on Links; Cheney, Lindley and Wadler's
+*A Practical Theory of Language-Integrated Query* and *Query Shredding*) is a
+*query fragment* with a normalization theorem: code in the fragment always
+becomes one query, or one per level of nesting in the result. weft adopts it:
+
+- functions given to table methods must be in the fragment, and anything else
+  is a compile error that says how to fix it, never a fallback;
+- `rows()` is the one explicit way to fetch a whole table into memory;
+- queries run on the server, and refresh when a command writes a table they
+  read. Keeping results up to date incrementally (DBSP shows this works for
+  any relational query) belongs to the client cache and sync design, still
+  open.
+
+Mainstream languages couldn't adopt this because mutation and references make
+the fragment hard to enforce. weft is pure and has no references, so it can.
+
+This is kept deliberately contained: it translates one function's table
+reads into SQL for the one database, and makes no decision about where data
+lives. What stays hard: matching weft's meaning exactly in SQL (text
+comparison, overflow, empty aggregates), and knowing table sizes for index
+choices.
+
+### Remote functions are explicit; other roles aren't keywords
 
 An earlier design had a keyword for every concept (`command`, `query`,
 `check`, `job`, `table`, `extern`, `client`, `page`, `action`, `deploy`,
-`simulate`), over 40 reserved words in all. The effect system already knew most
-of what those keywords announced: a function that writes `items` can only run
-where `items` lives, as a transaction. So a function's role now follows from
-its effects plus its folder, and folders also mark the API boundary (only
-functions in `commands/` are callable from clients).
+`simulate`), over 40 reserved words in all. Those became standard-library
+values instead (`Table(…)`, `Job { … }`, `Deployment { … }`).
 
-The trade-off is explicitness: a role isn't spelled out on the declaration's
-line. It's recovered by `!`, by the folder, and by the editor and
-`weft explain`, which show each function's role.
+Two later drafts went further and inferred roles: first from effects plus
+folders, then from effects plus use (a function a handler calls that writes
+is a command). That was dropped for commands and queries. They're the
+boundary between client and server: the app's API, where security,
+validation and compatibility live, and the one place a reader most needs to
+see. Inferring it also leaned on the distributed design, which isn't settled.
+So they're explicit values, `Query(…)` and `Command(…)`, as in SvelteKit's
+remote functions. Checks are `Check(…)` for a similar reason: whether a `Bool`
+is an invariant is intent, not behavior.
+
+Everything else stays inferred where inference is ordinary and local: a
+handler is a component function that assigns state, and where a helper runs
+follows from what it references. Folders are a convention.
 
 Alternatives considered: one keyword per kind (explicit, but the language grows
 with the framework); decorators like `@command` (a second syntax, and known for
@@ -181,13 +261,13 @@ added named `action`s. The final design follows Svelte:
 
 - local `state`, assigned with plain `=`;
 - handlers are ordinary functions in the component, named or inline;
-- values computed from state are always up to date, with nothing to declare
-  (weft is pure, so every such binding is already derived);
+- values computed from state and queries are always up to date, with nothing
+  to declare;
 - `bind:` for inputs, scoped `style` blocks, `class` toggles.
 
 What weft keeps from Elm is the discipline: state changes only in the
-component's own handlers, never in `view` and never from outside, and state
-is plain data. Because the language has no references and no shared mutable
+component's own handlers and tasks, never in `view` and never from outside,
+and state is plain data. Because the language has no references and no shared mutable
 objects, the compiler can find every assignment exactly, so it generates the
 messages and update function Elm makes you write. That's what lets the
 simulator replay any run.
@@ -196,8 +276,46 @@ Svelte's `$`-prefixed runes exist because Svelte lives inside JavaScript and
 needed syntax that stays valid JavaScript. weft is its own language and
 doesn't. Roc's convention of `$` on every mutable name was considered and left
 out: Svelte's experience (moving from `$store` at every use to `$state` at the
-declaration) favors clean reading, and `state` and `var` already mark the
+declaration) favors clean reading, and `state` and `let mut` already mark the
 declaration.
+
+### General client constructs, not special cases
+
+The keyword problem had a second form. Each thing table queries didn't cover
+(data from another service, a live socket, a canvas widget) got its own
+compiler feature or a host-code escape hatch. React and Svelte need neither:
+they provide a few general constructs (state, effects with cleanup, element
+refs, async, stores, reusable stateful logic), and TanStack Query is ordinary
+library code built from them. weft takes the same approach:
+
+- **`.await`** waits for something that takes time: a command's result, an
+  HTTP call, a timer, a socket. It replaced `then`/`else` on commands, and the
+  rule that a failing command needs an `else` became a general one: a
+  `Result` can't be ignored. It's postfix, as in Rust, so it chains
+  (`rename_item(id, t).await.on_err(…)`).
+- **`task`** is work tied to a component's life, after SwiftUI's `.task`: it
+  starts when the component appears, is cancelled when it goes away, and
+  restarts when its `key:` changes. Restarts are explicit because restarting
+  on everything a task reads loops when the task assigns state it also reads.
+  `defer` replaces cleanup functions.
+- **Element handles** (`ref:`) are opaque data, like ids, with platform
+  operations.
+- **Stateful functions** declare `state` or `task` and play the role of custom
+  hooks. React's rule of hooks is checked statically.
+- **`Device` and `Memory` tables** are stores and caches, with the same
+  queries and snapshots as shared data.
+- **Platform modules** (`http`, `ws`, `dom`, `browser`, `secrets`) reach the
+  outside world, so externs are left for host libraries only. Simulations
+  model other services per host, and the one-machine comparison takes their
+  responses as given.
+- On the server, **`Job { watch: query }`** plus a table of pending work is
+  the outbox pattern, written in weft, which is how a change triggers a call
+  to another service when commands can't make one.
+
+`.await` is the one thing marked in code even though effects aren't. It isn't
+an effect: it marks where other handlers may run in between, so state read
+before it may have changed after it. That changes what the code means, the
+way `return` does, so it's visible.
 
 ### Methods and `where` clauses instead of traits
 
@@ -211,9 +329,45 @@ explicit, but a whole extra concept.
 ### Loops and local variables
 
 Roc shows a pure language can have `for`, `while`, `break`, `continue` and
-`return`, with `var` for variables that never escape their function. A
-function with a `var` stays pure. This replaced an earlier rule that logic
-could only use collection methods.
+`return`, with variables that never escape their function. A function with a
+`let mut` stays pure. This replaced an earlier rule that logic could only use
+collection methods.
+
+### Borrowed from Rust
+
+Beyond `let`, `let mut` and shadowing (below), weft takes the parts of Rust's
+surface that suit it:
+
+- `let … else` for a pattern that can fail, which is what commands do most
+  (`let Some(item) = items.get(id) else { return Err(NoSuchItem) }`);
+- `if let` for acting on one case, mostly in markup;
+- or-patterns (`Active | Done -> …`), in `match` arms only, since `|` also
+  delimits a lambda's parameters;
+- rustc-style diagnostics: a stable code, the source line, labels on related
+  places ("bound here"), notes, and `weft explain <code>` for a longer
+  explanation with an example and the fix;
+- one formatter with no options, `weft fmt`, as `rustfmt` and `gofmt` do it.
+
+Rust's other surface doesn't fit: `fn` would be a second way to write what a
+typed lambda already says; `List<Item>` is ambiguous with `<` (the reason
+Rust needs `::<>`); `impl` and traits are covered by record methods and `where`
+clauses; and weft has no semicolons, macros, lifetimes or references.
+
+### `let`, `let mut`, and shadowing
+
+Local bindings start with `let`, variables with `let mut`, as in Rust. Plain
+`name = value` inside a block is always an assignment, to a `let mut` or a
+`state`; at the top level and for record and component members it's a
+definition.
+
+An earlier design used `name = value` for both new bindings and assignments,
+with `var` for variables, and banned shadowing. Without a keyword, a rebinding
+(`cleaned = cleaned.lower()`) reads exactly like a mutation, so shadowing had
+to go. But the ban made every top-level name off limits as a parameter (`|items|`
+was an error in any project with an `items` table), and the checker had to
+look names up to tell a binding from an assignment. With `let`, each line says
+which it is, so shadowing is allowed, as in Rust; a `let` also lets the parser
+read a destructuring pattern directly. Roc itself only warns on shadowing.
 
 ### Conventions over configuration
 
@@ -222,14 +376,6 @@ A fixed layout (section 4) lets deployments say only what's a real choice:
 default is visible through `weft explain`, because invisible conventions are
 the part of Rails people complain about. Pages are files whose path is their
 URL. Routes are typed values, so a broken link is a compile error.
-
-### Replay by default, merge by choice
-
-Offline commands are replayed against the server's data in order, so every
-command runs exactly as written on one machine's state. That's the
-Replicache/Zero approach, and it keeps the one-machine meaning. A table field
-can opt into a merge rule (`Latest`, `Union`, `Sum`) when convergence matters
-more than replay. The compiler flags checks that depend on merged fields.
 
 ### Checks at three strengths
 
@@ -256,11 +402,11 @@ How the todo-lists example lowers under its `prod` deployment:
 | Source | Lowers to |
 |---|---|
 | Pure functions | Inlined into every target that needs them |
-| Commands | A Rust transaction against Postgres on the server, plus an optimistic TypeScript copy against the browser's local data; the server confirms it, or the client rolls back and replays its pending changes |
-| Queries | A SQL query plus a change feed, or local TypeScript evaluation over a replicated table |
+| Commands | An endpoint plus a typed client call, with argument validation and a request id; on the server, an atomic run (a Postgres transaction, or a single statement where that's provably equivalent) |
+| Queries | An endpoint plus a typed client call, cached on the client by arguments and refreshed when a command writes a table they read; on the server, one SQL query per level of nesting |
 | Components | TypeScript: each compiled to the Elm Architecture on a small runtime, or to fine-grained signals |
 | Tables | Schema, migrations from `schema/`, and indexes inferred from use (`sort_by(.created)`) |
-| `!` effects | Calls into each platform; the sim platform runs them deterministically from a seed |
+| Effects | Calls into each platform; the sim platform runs them deterministically from a seed |
 
 ## 7. Front ends
 
@@ -282,22 +428,44 @@ query engine such as salsa.
 
 These belong to the project owner.
 
-1. **Users and authorization.** Who can call which command, and see which
-   rows. Per-user todo lists are the first test: whether ownership can be
-   declared on a table (`Table(Item, owner: …)`) so placement and sync stay
-   one-line concerns.
+1. **Users and authorization.** Who can call which query or command, and see
+   which rows. One candidate is requiring an access rule on every remote
+   function, so a public endpoint can't happen by accident. Per-user todo
+   lists are the first test, including whether ownership can be declared on
+   a table (`Table(Item, owner: …)`).
 2. **How a check is proven.** Simulation and exhaustive checking are designed.
    Proving that every command preserves a check on one machine (a person
    writes the check, an AI writes the proof, as in Bend 2) needs a proof
    syntax. See [testing-and-proof.md](testing-and-proof.md).
+3. **The client cache.** Query results are cached by arguments and refreshed
+   by table. Still open: keeping results across pages, prefetching, how long
+   unused results live, and optimistic updates (showing a command's effect
+   before the server confirms), which today are absent rather than automatic.
+4. **Distribution: placement, replication, offline and consistency.** Where
+   data lives beyond one server and its database; copies of data on clients;
+   offline writes and how they're replayed or merged; consistency levels;
+   and plans chosen by a cost model. Earlier drafts proposed answers
+   (deployment `placement` and `consistency` fields, replay with opt-in merge
+   rules, the oracle checking declared consistency); they're recorded in
+   [infrastructure-primitives.md](infrastructure-primitives.md) and the git
+   history, and are deliberately not part of the language until their
+   consequences are worked out.
 
-Decided since earlier drafts, with the reasons above: reactive reads stay
-unmarked; effect rows are required on commands and externs only; records are
+Decided since earlier drafts, with the reasons above: effects are inferred
+and never written, as in Koka, with no `!` marker; table reads are
+language-integrated queries with a guarantee, contained to one database;
+commands and queries are explicit `Query` and `Command` remote functions,
+checks are `Check` values, and folders are a convention; commands are atomic
+and fail by returning `Err`, which rolls them back; records are
 nominal and tag unions structural; user-defined effects and handlers are part
-of the language, with the cross-machine rule; loading states use `status(…)`;
-optimistic commands replay by default with opt-in merge rules; a rejection
-arriving after its component is gone is dropped; state is assigned with plain
-names; projects group by layer in one namespace; routing has typed routes,
+of the language, with the cross-machine rule; clients use general constructs
+(`.await`, `task`, `defer`, element handles, stateful functions, `Device` and
+`Memory` tables, platform modules) instead of special cases, and externs are
+for host libraries only; loading states use `status(…)`;
+a failure
+arriving after its component is gone is dropped; local bindings use `let` and
+`let mut`, and shadowing is allowed; state is assigned with plain
+names; projects group by layer, by convention, in one namespace; routing has typed routes,
 query parameters, layouts and a not-found page.
 
 ## 9. Prior art
@@ -306,8 +474,9 @@ Clones live in `refs/` (see [refs/README.md](../refs/README.md)).
 
 | Project | What weft takes from it |
 |---|---|
-| Roc (`refs/roc`) | Platforms, `!` purity, structural tag unions, static dispatch, `where` clauses, loops with `var` |
-| Koka (`refs/koka`) | Effect rows, handlers, operation kinds |
+| Roc (`refs/roc`) | Platforms, errors as `Result` values, structural tag unions, static dispatch, `where` clauses, loops with local variables |
+| Koka (`refs/koka`) | Inferred effects, effect polymorphism, user-defined effects, handlers, operation kinds |
+| Links, T-LINQ | Language-integrated query with a guarantee: the query fragment and normalization |
 | Elm | The model components compile to: pure transitions, messages as data |
 | Svelte | The component feel: local state, plain assignment, `bind:`, scoped styles |
 | JAX (`refs/jax`) | Small IR, primitives with per-transformation rules, sharding annotations |

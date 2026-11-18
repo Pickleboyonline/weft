@@ -64,9 +64,13 @@ noted.
 | `group_by(f)` | `List({ key: k, items: List(a) })` |
 | `take(n)`, `skip(n)` | `List` |
 | `append(x)`, `prepend(x)`, `concat(list)` | `List` |
-| `push(x)` | in a handler, on a `state` or `var`: adds `x` in place |
 | `zip(list)` | `List({ first: a, second: b })` |
 | `iter()` | used by `for` |
+
+- Methods that take a function have that function's effects: `map` with a
+  function that reads a table reads it too (see
+  [Effects](effects#effects-follow-their-callers-and-callbacks)).
+- To add to a `state` or `var`, assign a new list: `names = names.append(x)`.
 
 ## Dict and Set
 
@@ -101,7 +105,17 @@ empty dict (it's the empty record): use `Dict.empty()`.
 |---|---|
 | `with_default(x)` | the value, or `x` |
 | `map(f)`, `map_err(f)` | `Result` |
+| `on_ok(f)`, `on_err(f)` | `{}`: calls `f` with the value or the error, if there is one |
 | `is_ok()`, `is_err()` | `Bool` |
+
+A `Result` can't be ignored: a call whose `Result` is never used is a compile
+error. `.on_err(|_| {})` drops a failure on purpose, visibly.
+
+## Pending
+
+A call that takes time, made without [`.await`](ui#waiting-await), gives a
+`Pending(a)`. `.await` on it waits for the `a`. Starting several and then
+awaiting each runs them at the same time.
 
 ## Time, Date and Duration
 
@@ -120,18 +134,52 @@ empty dict (it's the empty record): use `Dict.empty()`.
 
 | Expression | Returns |
 |---|---|
-| `new_id!()` | a new `Id(t)` |
+| `new_id()` | a new `Id(t)` |
 | `id.to_text()` | `Text`: the 26-character URL-safe form |
 | `Id.parse(text)` | `Result(Id(t), [NotAnId])` |
 
 ## Tables
 
-See [Data: tables](data#reading) for the full table API.
+See [Data: reading](data#reading) for the full table API.
+
+## Query methods
+
+These work inside [queries on tables](data#queries-on-tables), and compile to
+the database. Everything else in this library runs only in memory.
+
+| Type | Query methods |
+|---|---|
+| All types | `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| Numbers | `+ - * / %`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `to_int`, `to_dec`, `to_float` |
+| `Bool` | `and`, `or`, `not` |
+| `Text` | `length`, `is_empty`, `trim`, `trim_start`, `trim_end`, `lower`, `upper`, `contains`, `starts_with`, `ends_with`, `concat`, `slice` |
+| `Time`, `Date`, `Duration` | arithmetic and comparison, `date`, `day`, `month`, `year` |
+| `Option` | `with_default`, `is_some`, `is_none`, `map` |
+| `List` (results of reads, and lists passed in) | `count`, `count_if`, `is_empty`, `first`, `find`, `contains`, `any`, `all`, `filter`, `map`, `flat_map`, `sum`, `min`, `max`, `sort_by`, `reverse`, `take`, `skip`, `distinct`, `distinct_by`, `group_by` |
 
 ## Built-in effectful functions
 
-`now!()`, `today!()`, `new_id!()` and `random!(range)`: see
+`now()`, `today()`, `new_id()`, `random(range)`, `sleep(duration)`,
+`go(route)` and `status(query)`: see
 [Effects](effects#built-in-effectful-functions).
+
+## Platform modules
+
+Each platform provides modules for the world outside the app. They're
+ordinary functions; calls that take time give a `Pending` and are used with
+`.await`. In a simulation, the sim platform provides them, answering calls to
+other services from the simulation's [models](deployment#simulations).
+
+| Module | Platform | Main functions |
+|---|---|---|
+| `http` | client, server | `get(url)`, `post(url, body)`, `put`, `delete`, with named options `headers:`, `timeout:`, `idempotency_key:`; each gives a `Response`, then `.decode(Type)` (a `Result(Type, [BadData(Text)])`, since the data may not fit), `.text()`, `.status` |
+| `ws` | client, server | `connect(url)` gives a socket with `send(message)`, `receive()` (a `Result` with the next message, or `Closed`) and `close()`; a message has `.decode(Type)` and `.text()` like a `Response` |
+| `dom` | client | `Element` methods: `focus()`, `blur()`, `size()`, `scroll_into_view()`, `canvas_2d()`, `webgl()` |
+| `browser` | client | `location()`, `online()`, `focused()`, `clipboard`, `geolocation()`, `notify(text)`; `online()` and `focused()` are read reactively, like queries |
+| `secrets` | server | `get(name)`: a `Secret`, which can be passed to `http` but never shown, logged or sent to a client |
+
+A socket and an `Element` are opaque handles: data, so they can be kept in
+`state`, but their operations are platform calls.
 
 ## UI
 
@@ -139,9 +187,10 @@ See [Data: tables](data#reading) for the full table API.
 |---|---|
 | `nothing` | renders nothing |
 | `outlet` | where a layout renders the current page |
-| `go(route)` | in a handler: navigate once the handler finishes |
-| `status(query)` | `Loading`, `Ready(v)`, `Stale(v)` or `Failed(reason)`: see [UI](ui#loading-and-offline-states) |
-| `Action`, `Action(a)` | the types of handlers passed to components |
+| `go(route)` | in a handler or task: navigate once it finishes or reaches an `.await` |
+| `status(query)` | `Loading`, `Ready(v)`, `Refreshing(v)` or `Failed(reason)`: see [UI](ui#loading-states) |
+| `Action`, `Action(a)` | the types of handlers passed to components: `() -> {}` and `a -> {}` |
+| `Element` | a handle to an element on screen, set by `ref:`; see [UI](ui#element-handles) |
 
 ## Markup
 
@@ -158,7 +207,7 @@ additions:
 | `checkbox` | weft addition: `input` of type checkbox, with `checked` and `on_change` passing `Bool` |
 | `link` | weft addition: a typed link to a page, `link(to: Route)` |
 
-Attributes are the HTML attributes in `snake_case`, plus `bind`, `key`, and
+Attributes are the HTML attributes in `snake_case`, plus `bind`, `ref`, `key`, and
 `class` as a record of `Bool`s: see [UI: attributes](ui#attributes).
 
 ## Configuration types
@@ -166,8 +215,10 @@ Attributes are the HTML attributes in `snake_case`, plus `bind`, `key`, and
 | Type | Used in | See |
 |---|---|---|
 | `Table(r, …)` | `data/` | [Data](data#tables) |
+| `Query(f)`, `Command(f)` | `queries/`, `commands/` | [Commands and queries](commands-and-queries) |
+| `Check(f)` | `checks/` | [Checks](checks-and-tests) |
 | `Extern { needs, sim }` | `externs/` | [Externs](resources#externs) |
-| `Job { every \| at, run }` | `jobs/` | [Jobs](resources#jobs) |
+| `Job { every \| at \| watch, run }` | `jobs/` | [Jobs](resources#jobs) |
 | `Endpoint { method, path, run }` | `endpoints/` | [Endpoints](resources#endpoints) |
-| `Deployment { … }`, `Machine { … }`, `Budget { … }` | `deploy/` | [Deployment](deployment) |
+| `Deployment { … }`, `Machine { … }` | `deploy/` | [Deployment](deployment) |
 | `Simulation { … }`, `Network { … }`, `Crashes { … }` | `simulate/` | [Simulations](deployment#simulations) |

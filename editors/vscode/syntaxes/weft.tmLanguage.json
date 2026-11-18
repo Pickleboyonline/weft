@@ -13,7 +13,6 @@
         { "include": "#style-block" },
         { "include": "#declarations" },
         { "include": "#line-starts" },
-        { "include": "#effect-row" },
         { "include": "#lambda" },
         { "include": "#numbers" },
         { "include": "#labels" },
@@ -30,17 +29,28 @@
     "comments": {
       "patterns": [
         {
-          "comment": "## doc comment: documents the declaration below",
+          "comment": "//! documents the file; /// documents the declaration below",
           "name": "comment.line.documentation.weft",
-          "match": "(##).*$",
+          "match": "(//[!/]).*$",
           "captures": { "1": { "name": "punctuation.definition.comment.weft" } }
         },
         {
-          "name": "comment.line.number-sign.weft",
-          "match": "(#).*$",
+          "name": "comment.line.double-slash.weft",
+          "match": "(//).*$",
           "captures": { "1": { "name": "punctuation.definition.comment.weft" } }
-        }
+        },
+        { "include": "#block-comment" }
       ]
+    },
+
+    "block-comment": {
+      "comment": "/* ... */ nests, so it includes itself",
+      "name": "comment.block.weft",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.weft" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.comment.end.weft" } },
+      "patterns": [{ "include": "#block-comment" }]
     },
 
     "strings": {
@@ -127,16 +137,25 @@
           }
         },
         {
-          "comment": "state draft = \"\"   var count = 0",
-          "match": "\\b(state|var)\\s+([a-z_][A-Za-z0-9_]*)",
+          "comment": "state draft = \"\"   let cleaned = …   let mut count = 0",
+          "match": "\\b(state|let)(?:\\s+(mut))?\\s+([a-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.$1.weft" },
-            "2": { "name": "variable.other.definition.weft" }
+            "2": { "name": "storage.modifier.mut.weft" },
+            "3": { "name": "variable.other.definition.weft" }
           }
         },
         {
-          "comment": "Operation kinds inside an effect: final abort! : …",
-          "match": "^\\s*(final|ctl)\\s+(?=[a-z_][A-Za-z0-9_]*!)",
+          "comment": "let before a pattern: let { title, done } = item",
+          "match": "\\b(let)\\b(?:\\s+(mut)\\b)?",
+          "captures": {
+            "1": { "name": "storage.type.let.weft" },
+            "2": { "name": "storage.modifier.mut.weft" }
+          }
+        },
+        {
+          "comment": "Operation kinds inside an effect: final abort : …",
+          "match": "^\\s*(final|ctl)\\s+(?=[a-z_][A-Za-z0-9_]*\\s*:)",
           "captures": { "1": { "name": "storage.modifier.$1.weft" } }
         }
       ]
@@ -154,13 +173,17 @@
           }
         },
         {
-          "comment": "add_item! : Id(TodoList), Text => … A space before the colon separates signatures from record fields.",
-          "match": "^\\s*((?:[A-Z][A-Za-z0-9_]*\\.)?[a-z_][A-Za-z0-9_]*)(!)?\\s+(:)\\s",
+          "comment": "add_item : Id(TodoList), Text -> … A space before the colon separates signatures from record fields.",
+          "match": "^\\s*((?:[A-Z][A-Za-z0-9_]*\\.)?[a-z_][A-Za-z0-9_]*)\\s+(:)\\s",
           "captures": {
             "1": { "name": "entity.name.function.weft" },
-            "2": { "name": "keyword.other.effect.weft" },
-            "3": { "name": "punctuation.separator.type.weft" }
+            "2": { "name": "punctuation.separator.type.weft" }
           }
+        },
+        {
+          "comment": "Work tied to a component's life: task { … }  task(key: symbol) { … }",
+          "match": "^\\s*(task)\\b(?=\\s*[({])",
+          "captures": { "1": { "name": "storage.type.task.weft" } }
         },
         {
           "comment": "A component's markup: view = li { … }",
@@ -172,20 +195,18 @@
         },
         {
           "comment": "A function definition: keeps = |show, i| …",
-          "match": "^\\s*([a-z_][A-Za-z0-9_]*)(!)?\\s*(=)(?![=>])(?=\\s*\\|)",
+          "match": "^\\s*([a-z_][A-Za-z0-9_]*)\\s*(=)(?![=>])(?=\\s*\\|)",
           "captures": {
             "1": { "name": "entity.name.function.weft" },
-            "2": { "name": "keyword.other.effect.weft" },
-            "3": { "name": "keyword.operator.assignment.weft" }
+            "2": { "name": "keyword.operator.assignment.weft" }
           }
         },
         {
           "comment": "Any other binding or assignment: items = Table(Item), cleaned = title.trim()",
-          "match": "^\\s*([a-z_][A-Za-z0-9_]*)(!)?\\s*(=)(?![=>])",
+          "match": "^\\s*([a-z_][A-Za-z0-9_]*)\\s*(=)(?![=>])",
           "captures": {
             "1": { "name": "variable.other.definition.weft" },
-            "2": { "name": "keyword.other.effect.weft" },
-            "3": { "name": "keyword.operator.assignment.weft" }
+            "2": { "name": "keyword.operator.assignment.weft" }
           }
         },
         {
@@ -193,22 +214,6 @@
           "match": "^\\s*(key)\\s+(?=[a-z_][A-Za-z0-9_]*\\s*:)",
           "captures": { "1": { "name": "storage.modifier.key.weft" } }
         }
-      ]
-    },
-
-    "effect-row": {
-      "comment": "! <write items, reject [EmptyTitle], ..>",
-      "name": "meta.effects.weft",
-      "begin": "(!)\\s*(<)",
-      "end": ">",
-      "beginCaptures": {
-        "1": { "name": "keyword.other.effect.weft" },
-        "2": { "name": "punctuation.definition.effects.begin.weft" }
-      },
-      "endCaptures": { "0": { "name": "punctuation.definition.effects.end.weft" } },
-      "patterns": [
-        { "name": "keyword.other.effect.kind.weft", "match": "\\b(read|write|reject|random|time|set|send|extern)\\b" },
-        { "include": "#main" }
       ]
     },
 
@@ -237,7 +242,7 @@
 
     "labels": {
       "comment": "Record fields and named arguments: { draft: Text }, on_click: save",
-      "match": "\\b([a-z_][A-Za-z0-9_]*!?)\\s*(:)(?!:)",
+      "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(:)(?!:)",
       "captures": {
         "1": { "name": "variable.other.property.weft" },
         "2": { "name": "punctuation.separator.key-value.weft" }
@@ -246,7 +251,7 @@
 
     "keywords": {
       "patterns": [
-        { "name": "keyword.control.weft", "match": "\\b(if|else|match|for|in|while|break|continue|return|then|reject|crash|with)\\b" },
+        { "name": "keyword.control.weft", "match": "\\b(if|else|match|for|in|while|break|continue|return|await|defer|crash|with)\\b" },
         { "name": "keyword.other.weft", "match": "\\b(where|expect)\\b" },
         { "name": "keyword.operator.wordlike.logical.weft", "match": "\\b(and|or|not)\\b" },
         { "name": "constant.language.boolean.weft", "match": "\\b(True|False)\\b" },
@@ -263,12 +268,19 @@
     "calls": {
       "patterns": [
         {
-          "comment": "Method call: .insert!(…)  .trim()",
-          "match": "(\\.)([a-z_][A-Za-z0-9_]*)(!)?(?=\\s*\\()",
+          "comment": "Method call: .insert(…)  .trim()",
+          "match": "(\\.)([a-z_][A-Za-z0-9_]*)(?=\\s*\\()",
           "captures": {
             "1": { "name": "punctuation.accessor.weft" },
-            "2": { "name": "entity.name.function.member.weft" },
-            "3": { "name": "keyword.other.effect.weft" }
+            "2": { "name": "entity.name.function.member.weft" }
+          }
+        },
+        {
+          "comment": "Waiting: create_list(name).await",
+          "match": "(\\.)(await)\\b",
+          "captures": {
+            "1": { "name": "punctuation.accessor.weft" },
+            "2": { "name": "keyword.control.weft" }
           }
         },
         {
@@ -280,19 +292,10 @@
           }
         },
         {
-          "comment": "Call: keeps(show, t)  add_item!(list, title)",
-          "match": "\\b([a-z_][A-Za-z0-9_]*)(!)?(?=\\s*\\()",
+          "comment": "Call: keeps(show, t)  add_item(list, title)",
+          "match": "\\b([a-z_][A-Za-z0-9_]*)(?=\\s*\\()",
           "captures": {
-            "1": { "name": "entity.name.function.weft" },
-            "2": { "name": "keyword.other.effect.weft" }
-          }
-        },
-        {
-          "comment": "An effectful name that isn't being called here: send_email!",
-          "match": "\\b([a-z_][A-Za-z0-9_]*)(!)(?!=)",
-          "captures": {
-            "1": { "name": "entity.name.function.weft" },
-            "2": { "name": "keyword.other.effect.weft" }
+            "1": { "name": "entity.name.function.weft" }
           }
         }
       ]
@@ -303,7 +306,7 @@
         {
           "comment": "Built-in types and standard-library configuration types",
           "name": "support.type.builtin.weft",
-          "match": "\\b(Int|Dec|Float|Bool|Text|Bytes|Time|Date|Duration|Size|Id|List|Dict|Set|Range|Option|Result|Table|Action|Html|Route|Deployment|Machine|Budget|Simulation|Network|Crashes|Extern|Job|Endpoint|Request|Response|Fallible|Constant|Script)\\b"
+          "match": "\\b(Int|Dec|Float|Bool|Text|Bytes|Time|Date|Duration|Size|Id|List|Dict|Set|Range|Option|Result|Table|Query|Command|Check|Pending|Element|Secret|Action|Html|Route|Deployment|Machine|Simulation|Network|Crashes|Extern|Job|Endpoint|Request|Response|Fallible|Constant|Script)\\b"
         },
         {
           "comment": "User types and tags: Todo, Filter, All, Some(id), EmptyTitle",
@@ -315,13 +318,12 @@
 
     "operators": {
       "patterns": [
-        { "name": "keyword.other.effect.arrow.weft", "match": "=>" },
         { "name": "keyword.operator.arrow.weft", "match": "->" },
         { "name": "keyword.operator.range.weft", "match": "\\.\\.[<=]" },
         { "name": "keyword.operator.spread.weft", "match": "\\.\\." },
         { "name": "keyword.operator.comparison.weft", "match": "==|!=|<=|>=|<|>" },
         { "name": "keyword.operator.assignment.weft", "match": "=" },
-        { "name": "keyword.operator.arithmetic.weft", "match": "//|[+\\-*/%]" },
+        { "name": "keyword.operator.arithmetic.weft", "match": "[+\\-*/%]" },
         { "name": "keyword.operator.try.weft", "match": "\\?" }
       ]
     },

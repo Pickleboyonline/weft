@@ -6,8 +6,9 @@ description: The project layout, weft.toml, naming conventions, packages and gen
 # Projects and packages
 
 Every weft project has the same layout, in the spirit of Rails. The compiler
-sees the whole program, so where a file lives can't change what it means. It
-decides what a file is for, so every project is predictable.
+sees the whole program, so where a file lives never changes what it means:
+the layout is a convention, so every project is predictable for people,
+agents and generators.
 
 ## Layout
 
@@ -15,14 +16,14 @@ decides what a file is for, so every project is predictable.
 todo-lists/
   weft.toml          the project's name and dependencies
   data/              records and their tables, one record per file
-  commands/          functions that write: what clients call
+  commands/          functions that write: what handlers call
   queries/           functions that only read: what views use
   ui/
     App.weft         the client's root component, and the layout around every page
     pages/           one component per URL
     components/      one component per file
     styles/          global CSS
-  checks/            invariants
+  checks/            invariants: `Check` values
   jobs/              scheduled work
   endpoints/         HTTP entry points for other systems
   externs/           extern declarations, with their host code
@@ -34,21 +35,25 @@ todo-lists/
 
 Every folder except `data/`, `commands/`, `queries/` and `ui/` is optional.
 
-## What each folder means
+## What each folder is for
 
-| Folder | Top-level bindings there are… | Rules |
-|---|---|---|
-| `data/` | records, aliases, `Table`s | no functions except record methods |
-| `commands/` | commands, and helpers they use | a function that writes needs a full signature |
-| `queries/` | queries, and pure helpers | nothing may write |
-| `checks/` | checks (`Bool` bindings) | nothing may write |
-| `jobs/` | `Job`s and the functions they run | |
-| `endpoints/` | `Endpoint`s and the functions they run | |
-| `externs/` | `Extern`s | each needs host code beside it |
-| `effects/` | `effect`s and `handler`s | |
-| `deploy/` | `Deployment`s | |
-| `simulate/` | `Simulation`s | |
-| `ui/` | `component`s | one per file |
+These are conventions. `weft lint` warns when something seems to be in the
+wrong place, such as a command in `queries/`, but the program means the same
+either way.
+
+| Folder | Top-level bindings there are usually… |
+|---|---|
+| `data/` | records, aliases, `Table`s |
+| `commands/` | commands, and helpers they use |
+| `queries/` | queries, and helpers they use |
+| `checks/` | `Check`s |
+| `jobs/` | `Job`s and the functions they run |
+| `endpoints/` | `Endpoint`s and the functions they run |
+| `externs/` | `Extern`s, each with its host code beside it |
+| `effects/` | `effect`s and `handler`s |
+| `deploy/` | `Deployment`s |
+| `simulate/` | `Simulation`s |
+| `ui/` | `component`s, one per file |
 
 `expect` lines can go in any file.
 

@@ -15,7 +15,7 @@ purpose, the promise and the decisions, and every later page depends on them.
    it.
 2. **The promise and its limits**, modeled on TigerBeetle's safety page:
    exactly what weft guarantees, what faults the simulator injects, and what
-   happens when an invariant can't be kept offline.
+   is still open (distribution and offline use).
 3. **Why doesn't weft…?**, modeled on Roc's FAQ: each decision with its
    tradeoff, and firm "no"s where a decision is made. "Why a new language?"
    belongs here, with an answer that survives the history in
@@ -26,9 +26,9 @@ purpose, the promise and the decisions, and every later page depends on them.
 | Section | Pages | Modeled on |
 |---|---|---|
 | **Start** | The big idea · The promise and its limits · Weft at a glance (syntax on one page) · Why doesn't weft…? | Unison, TigerBeetle, Gleam, Roc |
-| **Tutorial** | One CRUD app grown step by step: the pure core → the client → effects → talking to the server → storage → deployment in its own file → consistency choices → testing in the simulator | Elm's order, Hydro's single growing example, Rust's project chapters, Svelte's exercises |
+| **Tutorial** | One CRUD app grown step by step: the pure core → the client → effects → talking to the server (queries and commands) → storage → deployment in its own file → testing in the simulator | Elm's order, Hydro's single growing example, Rust's project chapters, Svelte's exercises |
 | **How-to guides** | Add a field or migration · write a user-defined effect · use an escape hatch · debug a failing simulator seed · deploy to a target | Diátaxis how-to, Gleam guides |
-| **Concepts** ("About…" pages) | About effects · About placement and consistency · About the simulator | Diátaxis explanation, Koka's "Why Koka?", TigerBeetle's concepts |
+| **Concepts** ("About…" pages) | About effects · About remote functions and their guarantees · About the simulator | Diátaxis explanation, Koka's "Why Koka?", TigerBeetle's concepts |
 | **Reference** | Language reference · deployment reference · CLI, simulator options, standard library | Rust Reference, Go spec, Roc langref |
 | **Coming from…** | Weft for Elm users · for TypeScript + Postgres users · for Hydro users | Gleam's cheatsheets |
 | **Effective weft** | Idioms, dated so it can't silently go stale | Effective Go |

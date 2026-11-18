@@ -35,9 +35,9 @@ function expect(title, code, checks, lang = "weft") {
 console.log("scope checks");
 
 expect("record with key, defaults and a method",
-  `## One item on a list.
+  `/// One item on a list.
 record Item {
-  key id:  Id(Item) = new_id!()
+  key id:  Id(Item) = new_id()
   title:   Text
   done:    Bool = False
 
@@ -51,7 +51,6 @@ record Item {
     ["id", "variable.other.property"],
     ["Id", "support.type.builtin"],
     ["new_id", "entity.name.function"],
-    ["!", "keyword.other.effect"],
     ["False", "constant.language.boolean"],
     ["label", "entity.name.function"],
     ["if", "keyword.control"],
@@ -64,24 +63,37 @@ expect("tables are values", "items = Table(Item, delete_with: { list: lists })",
 ]);
 
 expect("a command: signature and definition",
-  `add_item! : Id(TodoList), Text => Id(Item) ! <reject [EmptyTitle, NoSuchList], ..>
-add_item! = |list, title| {
-  cleaned = title.trim()
-  if cleaned.is_empty() { reject EmptyTitle }
-  items.insert!(Item { list, title: cleaned })
+  `add_item : Id(TodoList), Text -> Result(Id(Item), [EmptyTitle, NoSuchList])
+add_item = |list, title| {
+  let cleaned = title.trim()
+  if cleaned.is_empty() { return Err(EmptyTitle) }
+  if not lists.has(list) { return Err(NoSuchList) }
+  Ok(items.insert(Item { list, title: cleaned }))
 }`,
   [
     ["add_item", "entity.name.function", 0],
-    ["=>", "keyword.other.effect.arrow"],
-    ["reject", "keyword.other.effect.kind", 0],
-    ["..", "meta.effects"],
+    ["->", "keyword.operator.arrow"],
     ["add_item", "entity.name.function", 1],
     ["list", "variable.parameter", 0],
     ["cleaned", "variable.other.definition"],
     ["is_empty", "entity.name.function.member"],
-    ["reject", "keyword.control", 1],
+    ["return", "keyword.control", 0],
     ["EmptyTitle", "entity.name.type", 1],
+    ["has", "entity.name.function.member"],
     ["insert", "entity.name.function.member"],
+  ]);
+
+expect("remote functions are values",
+  `add_item = Command(|list: Id(TodoList), title: Text| -> Result(Id(Item), [EmptyTitle]) {
+  Ok(items.insert(Item { list, title }))
+})
+items_in = Query(|list: Id(TodoList)| -> List(Item) { items.filter(|i| i.list == list) })`,
+  [
+    ["add_item", "variable.other.definition"],
+    ["Command", "support.type.builtin"],
+    ["Query", "support.type.builtin"],
+    ["Result", "support.type.builtin"],
+    ["EmptyTitle", "entity.name.type"],
   ]);
 
 expect("a query, with expect",
@@ -104,13 +116,16 @@ expect("a component: state, handlers, view, style",
 
   save = || {
     editing = False
-    rename_item!(item.id, draft)
-      then |ok| go(Home)
-      else |err| problem = err
+    rename_item(item.id, draft).await.on_err(|err| problem = err)
+  }
+
+  task(key: item.id) {
+    socket = ws.connect(url).await
+    defer { socket.close() }
   }
 
   view = li {
-    checkbox(checked: item.done, on_change: |d| set_done!(item.id, d))
+    checkbox(checked: item.done, on_change: |d| set_done(item.id, d))
     span(class: { done: item.done }, on_click: save) { item.title }
     button(on_click: || editing = False) { "Cancel" }
   }
@@ -125,9 +140,11 @@ expect("a component: state, handlers, view, style",
     ["state", "storage.type.state"],
     ["editing", "variable.other.definition", 0],
     ["save", "entity.name.function"],
-    ["then", "keyword.control"],
-    ["else", "keyword.control"],
-    ["go", "entity.name.function"],
+    ["await", "keyword.control", 0],
+    ["on_err", "entity.name.function.member"],
+    ["task", "storage.type.task"],
+    ["defer", "keyword.control"],
+    ["close", "entity.name.function.member"],
     ["view", "storage.type.view"],
     ["li", "entity.name.tag"],
     ["checkbox", "entity.name.tag"],
@@ -155,7 +172,8 @@ link(to: ListPage(id: row.list.id)) { row.list.name }`,
 
 expect("loops, variables and early return",
   `first_overdue = |items, today| {
-  var n = 0
+  let mut n = 0
+  let { title, done } = first
   for i in items {
     if i.done { continue }
     if i.due < today { return Some(i) }
@@ -165,7 +183,8 @@ expect("loops, variables and early return",
   crash "unreachable"
 }`,
   [
-    ["var", "storage.type.var"],
+    ["let", "storage.type.let", 0],
+    ["mut", "storage.modifier.mut"],
     ["n", "variable.other.definition", 0],
     ["for", "keyword.control"],
     ["in", "keyword.control"],
@@ -196,11 +215,27 @@ letter = """
     ["name", "meta.template.expression"],
   ]);
 
-expect("operators", "a = n // 2\nb = x?.to_int()?\nc = id != other", [
-  ["//", "keyword.operator.arithmetic"],
+expect("operators", "a = n / 2\nb = x?.to_int()?\nc = id != other", [
+  ["/", "keyword.operator.arithmetic"],
   ["?", "keyword.operator.try"],
   ["!=", "keyword.operator.comparison"],
   ["!=", "!keyword.other.effect"],
+]);
+
+expect("comments", `//! The file's doc.
+// A line comment.
+/// Docs for keeps.
+keeps = |s, i| s /* inline */ and i  // trailing
+/* outer /* nested */ still a comment */
+url = "https://example.com/*not a comment*/"`, [
+  ["The file's doc.", "comment.line.documentation"],
+  ["A line comment.", "comment.line.double-slash"],
+  ["Docs for keeps.", "comment.line.documentation"],
+  ["inline", "comment.block"],
+  ["trailing", "comment.line.double-slash"],
+  ["still a comment", "comment.block"],
+  ["and", "!comment"],
+  ["url", "!comment"],
 ]);
 
 expect("where clauses", "largest : List(a) -> Option(a) where [a.compare : a, a -> Int]", [
@@ -211,13 +246,13 @@ expect("where clauses", "largest : List(a) -> Option(a) where [a.compare : a, a 
 
 expect("effects and handlers",
   `effect Audit {
-  note! : Text => {}
-  final abort! : Text => a
+  note : Text -> {}
+  final abort : Text -> a
 }
 handler audit_to_table : Audit {
-  note! = |event| audit_log.insert!(AuditEntry { event })
+  note = |event| audit_log.insert(AuditEntry { event })
 }
-run! = || with audit_to_table { clear_done!(id) }`,
+run = || with audit_to_table { clear_done(id) }`,
   [
     ["effect", "storage.type.effect"],
     ["Audit", "entity.name.type", 0],
@@ -234,7 +269,7 @@ expect("configuration is records",
     server: Machine { platform: "weft/server-rust-postgres", count: Many },
   },
   consistency: { items: Session },
-  budgets: { add_item!: Budget { p99_latency: 50ms } },
+  budgets: { add_item: Budget { p99_latency: 50ms } },
 }`,
   [
     ["Deployment", "support.type.builtin"],
@@ -242,12 +277,12 @@ expect("configuration is records",
     ["Machine", "support.type.builtin"],
     ["Many", "entity.name.type"],
     ["Session", "entity.name.type"],
-    ["add_item!", "variable.other.property"],
+    ["add_item", "variable.other.property"],
     ["50", "constant.numeric"],
   ]);
 
 expect("markdown code blocks",
-  'Some prose.\n\n```weft title="commands/items.weft"\nset_done! = |id, done| items.update!(id, |i| { ..i, done })\n```\n\nMore prose with record in it.',
+  'Some prose.\n\n```weft title="commands/items.weft"\nset_done = |id, done| items.update(id, |i| { ..i, done })\n```\n\nMore prose with record in it.',
   [
     ["set_done", "entity.name.function"],
     ["update", "entity.name.function.member"],

@@ -1,8 +1,8 @@
-# Invariants about items.
+// Invariants about items.
 
-titles_not_blank = items.all(|i| not i.title.trim().is_empty())
+titles_not_blank = Check(|| items.all(|i| not i.title.trim().is_empty()))
 
-## Every item belongs to a list that exists. On one machine this can't break:
-## deleting a list deletes its items, and add_item! rejects a missing list.
-## Across devices it can (README, "The delete race").
-no_orphans = items.all(|i| lists.has(i.list))
+/// Every item belongs to a list that exists. On one machine this can't break:
+/// deleting a list deletes its items, and add_item fails on a missing list.
+/// Across devices it can (README, "The delete race").
+no_orphans = Check(|| items.all(|i| lists.has(i.list)))

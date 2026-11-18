@@ -47,3 +47,28 @@ site-build: website/node_modules ## Build the docs site into website/build
 website/node_modules: website/package.json website/package-lock.json
 	cd website && npm install --no-audit --no-fund
 	@touch $@
+
+# ── Grammar and checker (tree-sitter-weft/, crates/) ──────────
+
+TS_CLI := npx --yes tree-sitter-cli@0.25.3
+
+.PHONY: grammar check doctest fmt test
+
+grammar: ## Regenerate the parser from tree-sitter-weft/grammar.js (fails on any ambiguity)
+	cd tree-sitter-weft && $(TS_CLI) generate
+
+check: ## Check the example project: names, effects, types and rules
+	cargo run -q -p weft -- check examples/todo-lists
+
+doctest: ## Check every ```weft block in the docs and the examples
+	cargo run -q -p weft -- doctest
+
+fmt: ## Format the example project in weft's one style
+	cargo run -q -p weft -- fmt examples/todo-lists
+
+test: ## Run the grammar, checker, formatter and highlighting tests
+	cargo test -q
+	cargo run -q -p weft -- check examples/todo-lists
+	cargo run -q -p weft -- doctest
+	cargo run -q -p weft -- fmt --check examples/todo-lists
+	$(MAKE) vscode-test

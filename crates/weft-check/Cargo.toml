@@ -1,0 +1,9 @@
+[package]
+name = "weft-check"
+description = "Name resolution, type and effect inference, and the language's rules"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+weft-syntax = { path = "../weft-syntax" }

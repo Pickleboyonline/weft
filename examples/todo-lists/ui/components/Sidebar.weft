@@ -1,15 +1,17 @@
-## Every list with its count of open items, and a form for a new one. Each list
-## is a link to its page; the link to the page you're on is marked as current.
+/// Every list with its count of open items, and a form for a new one. Each list
+/// is a link to its page; the link to the page you're on is marked as current.
 component Sidebar {
   state name    = ""
   state problem = None
 
   create = || {
     problem = None
-    create_list!(name)
-      then |id| go(ListPage(id: id))
-      else |err| problem = err
+    let pending = name
     name = ""
+    match create_list(pending).await {
+      Ok(id)   -> go(ListPage(id: id))
+      Err(err) -> problem = err
+    }
   }
 
   view = nav {
